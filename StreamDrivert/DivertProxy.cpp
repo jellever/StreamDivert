@@ -21,11 +21,11 @@ static void cleanup(HANDLE ioport, OVERLAPPED *ignore)
 	}
 }
 
-DivertProxy::DivertProxy(UINT16 localPort, UINT16 proxyPort, std::vector<DIVERT_PROXY_RECORD> proxyRecords)
+DivertProxy::DivertProxy(const UINT16 localPort, const std::vector<RelayEntry>& proxyRecords)
 {
 	this->running = false;
 	this->localPort = localPort;
-	this->localProxyPort = proxyPort;
+	this->localProxyPort = 0;
 	this->proxyRecords = proxyRecords;
 	this->proxySock = NULL;
 }
@@ -49,8 +49,50 @@ bool DivertProxy::Start()
 	{
 		std::lock_guard<std::mutex> lock(this->resourceLock);
 		std::string selfDesc = this->getStringDesc();
-		std::string fiendlyProxyRecordStr = this->getFiendlyProxyRecordsStr();
 		info("%s: Start", selfDesc.c_str());
+
+		if (WSAStartup(wsa_version, &wsa_data) != 0)
+		{
+			error("%s: failed to start WSA (%d)", selfDesc.c_str(), GetLastError());
+			goto failure;
+		}
+		this->proxySock = socket(AF_INET, SOCK_STREAM, 0);
+		if (this->proxySock == INVALID_SOCKET)
+		{
+			error("%s: failed to create socket (%d)", selfDesc.c_str(), WSAGetLastError());
+			goto failure;
+		}
+		if (setsockopt(this->proxySock, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(int)) == SOCKET_ERROR)
+		{
+			error("%s: failed to re-use address (%d)", selfDesc.c_str(), GetLastError());
+			goto failure;
+		}
+		memset(&addr, 0, sizeof(addr));
+		addr.sin_family = AF_INET;
+		addr.sin_port = 0;
+		if (::bind(this->proxySock, (SOCKADDR *)&addr, sizeof(addr)) == SOCKET_ERROR)
+		{
+			error("%s: failed to bind socket (%d)", selfDesc.c_str(), WSAGetLastError());
+			goto failure;
+		}
+
+		struct sockaddr_in bind_addr;
+		int bind_addr_len = sizeof(bind_addr);
+		if (getsockname(this->proxySock, (struct sockaddr *)&bind_addr, &bind_addr_len) == -1)
+		{
+			error("%s: failed to get bind socket port (%d)", selfDesc.c_str(), WSAGetLastError());
+		}
+		this->localProxyPort = ntohs(bind_addr.sin_port);
+
+
+		if (listen(this->proxySock, 16) == SOCKET_ERROR)
+		{
+			error("%s: failed to listen socket (%d)", selfDesc.c_str(), WSAGetLastError());
+			goto failure;
+		}
+
+		selfDesc = this->getStringDesc();
+		std::string fiendlyProxyRecordStr = this->getFiendlyProxyRecordsStr();
 		info("%s: Start divertion of:\n%s", selfDesc.c_str(), fiendlyProxyRecordStr.c_str());
 		this->ioPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 		if (this->ioPort == NULL)
@@ -79,42 +121,11 @@ bool DivertProxy::Start()
 			error("%s: failed to associate I/O completion port (%d)", selfDesc.c_str(), GetLastError());
 			goto failure;
 		}
-
-		if (WSAStartup(wsa_version, &wsa_data) != 0)
-		{
-			error("%s: failed to start WSA (%d)", selfDesc.c_str(), GetLastError());
-			goto failure;
-		}
-		this->proxySock = socket(AF_INET, SOCK_STREAM, 0);
-		if (this->proxySock == INVALID_SOCKET)
-		{
-			error("%s: failed to create socket (%d)", selfDesc.c_str(), WSAGetLastError());
-			goto failure;
-		}
-		if (setsockopt(this->proxySock, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(int)) == SOCKET_ERROR)
-		{
-			error("%s: failed to re-use address (%d)", selfDesc.c_str(), GetLastError());
-			goto failure;
-		}
-		memset(&addr, 0, sizeof(addr));
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(this->localProxyPort);
-		if (::bind(this->proxySock, (SOCKADDR *)&addr, sizeof(addr)) == SOCKET_ERROR)
-		{
-			error("%s: failed to bind socket (%d)", selfDesc.c_str(), WSAGetLastError());
-			goto failure;
-		}
-
-		if (listen(this->proxySock, 16) == SOCKET_ERROR)
-		{
-			error("%s: failed to listen socket (%d)", selfDesc.c_str(), WSAGetLastError());
-			goto failure;
-		}
 	}//lock scope
 
 	this->running = true;
 	this->proxyThread = std::thread(&DivertProxy::ProxyWorker, this);
-	this->divertThread = std::thread(&DivertProxy::DivertWorker, this);	
+	this->divertThread = std::thread(&DivertProxy::DivertWorker, this);
 	return true;
 
 failure:
@@ -128,14 +139,25 @@ std::string DivertProxy::getFiendlyProxyRecordsStr()
 	std::string result;
 	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 	{
-		result += ipToString(record->srcAddr) + " -> " + std::to_string(this->localPort) + "-" + std::to_string(this->localProxyPort) + " -> " + ipToString(record->forwardAddr) + ":" + std::to_string(record->forwardPort) + "\n";
+		std::string srcip = record->srcAddr.to_string();
+		result += srcip + ":" + std::to_string(this->localPort) + " -> " + srcip + ":" + std::to_string(this->localProxyPort) + " -> " + record->forwardAddr.to_string() + ":" + std::to_string(record->forwardPort) + "\n";
 	}
 	return result;
 }
 
 std::string DivertProxy::getStringDesc()
 {
-	return std::string("DivertProxy(" + std::to_string(this->localPort) + ":" + std::to_string(this->localProxyPort) + ")");
+	std::string result = std::string("DivertProxy(" + std::to_string(this->localPort) + ":");
+	if (this->localProxyPort == 0)
+	{
+		result += "?";
+	}
+	else
+	{
+		result += std::to_string(this->localProxyPort);
+	}
+	result += ")";
+	return result;
 }
 
 void DivertProxy::DivertWorker()
@@ -145,6 +167,7 @@ void DivertProxy::DivertWorker()
 	unsigned char packet[MAXPACKETSIZE];
 	WINDIVERT_ADDRESS addr;
 	PWINDIVERT_IPHDR ip_header;
+	PWINDIVERT_IPV6HDR ip6_header;
 	PWINDIVERT_TCPHDR tcp_header;
 	UINT packet_len;
 	DWORD len;
@@ -167,7 +190,7 @@ void DivertProxy::DivertWorker()
 			read_failed:
 				warning("%s: failed to read packet (%d)", selfDesc.c_str(), lastErr);
 				continue;
-			}			
+			}
 
 			// Timeout = 1s
 			while (WaitForSingleObject(event, 1000) == WAIT_TIMEOUT)
@@ -182,7 +205,7 @@ void DivertProxy::DivertWorker()
 		}
 		cleanup(this->ioPort, &overlapped);
 
-		if (!WinDivertHelperParsePacket(packet, packet_len, &ip_header, NULL, NULL, NULL, &tcp_header, NULL, NULL, NULL))
+		if (!WinDivertHelperParsePacket(packet, packet_len, &ip_header, &ip6_header, NULL, NULL, &tcp_header, NULL, NULL, NULL))
 		{
 			warning("%s: failed to parse packet (%d)", selfDesc.c_str(), GetLastError());
 			continue;
@@ -255,7 +278,7 @@ void DivertProxy::ProxyWorker()
 	std::string selfDesc = this->getStringDesc();
 	while (true)
 	{
-		struct sockaddr_in clientSockAddr;
+		struct sockaddr_in6 clientSockAddr;
 		int size = sizeof(clientSockAddr);
 		SOCKET incommingSock = accept(this->proxySock, (SOCKADDR *)&clientSockAddr, &size);
 		if (incommingSock == INVALID_SOCKET)
@@ -268,8 +291,9 @@ void DivertProxy::ProxyWorker()
 			warning("%s: failed to accept socket (%d)", selfDesc.c_str(), WSAGetLastError());
 			continue;
 		}
-		std::string srcAddr = ipToString(ntohl(clientSockAddr.sin_addr.S_un.S_addr));
-		info("%s: Incoming connection from %s:%hu", selfDesc.c_str(), srcAddr.c_str(), ntohs(clientSockAddr.sin_port));
+		IpAddr clientSockIp = IpAddr(clientSockAddr.sin6_addr);
+		std::string srcAddr = clientSockIp.to_string();
+		info("%s: Incoming connection from %s:%hu", selfDesc.c_str(), srcAddr.c_str(), ntohs(clientSockAddr.sin6_port));
 		ProxyConnectionWorkerData* proxyConnectionWorkerData = new ProxyConnectionWorkerData();
 		proxyConnectionWorkerData->clientSock = incommingSock;
 		proxyConnectionWorkerData->clientAddr = clientSockAddr;
@@ -289,42 +313,42 @@ void DivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnecti
 {
 	SOCKET destSock = NULL;
 	SOCKET clientSock = proxyConnectionWorkerData->clientSock;
-	sockaddr_in clientSockAddr = proxyConnectionWorkerData->clientAddr;
+	sockaddr_in6 clientSockAddr = proxyConnectionWorkerData->clientAddr;
+	IpAddr clientSockIp = IpAddr(clientSockAddr.sin6_addr);
 	delete proxyConnectionWorkerData;
 
 	std::string selfDesc = this->getStringDesc();
 
-	DIVERT_PROXY_RECORD proxyRecord;
-	UINT32 clientAddr = ntohl(clientSockAddr.sin_addr.S_un.S_addr);
-	UINT16 clientSrcPort = ntohs(clientSockAddr.sin_port);
-	std::string srcAddr = ipToString(clientAddr);
-	bool lookupSuccess = this->findProxyRecordBySrcAddr(clientAddr, proxyRecord);
+	RelayEntry proxyRecord;
+	UINT16 clientSrcPort = ntohs(clientSockAddr.sin6_port);
+	std::string srcAddr = clientSockIp.to_string();
+	bool lookupSuccess = this->findProxyRecordBySrcAddr(clientSockIp, proxyRecord);
 	if (lookupSuccess)
 	{
-		struct sockaddr_in destAddr;
+		struct sockaddr_in6 destAddr;
 		ZeroMemory(&destAddr, sizeof(destAddr));
-		destAddr.sin_family = AF_INET;
-		destAddr.sin_addr.S_un.S_addr = htonl(proxyRecord.forwardAddr);
-		destAddr.sin_port = htons(proxyRecord.forwardPort);
+		destAddr.sin6_family = AF_INET6;
+		destAddr.sin6_addr = proxyRecord.forwardAddr.get_addr();
+		destAddr.sin6_port = htons(proxyRecord.forwardPort);
 		destSock = socket(AF_INET, SOCK_STREAM, 0);
 		if (destSock == INVALID_SOCKET)
 		{
 			error("%s: failed to create socket (%d)", selfDesc.c_str(), WSAGetLastError());
 			goto cleanup;
 		}
-		std::string forwardAddr = ipToString(proxyRecord.forwardAddr);
+		std::string forwardAddr = proxyRecord.forwardAddr.to_string();
 		info("%s: Connecting to forward host %s:%hu", selfDesc.c_str(), forwardAddr.c_str(), proxyRecord.forwardPort);
 		if (connect(destSock, (SOCKADDR *)&destAddr, sizeof(destAddr)) == SOCKET_ERROR)
 		{
 			error("%s: failed to connect socket (%d)", selfDesc.c_str(), WSAGetLastError());
 			goto cleanup;
 		}
-		
+
 		info("%s: Starting to route %s:%hu -> %s:%hu", selfDesc.c_str(), srcAddr.c_str(), clientSrcPort, forwardAddr.c_str(), proxyRecord.forwardPort);
 		ProxyTunnelWorkerData* tunnelDataA = new ProxyTunnelWorkerData();
 		ProxyTunnelWorkerData* tunnelDataB = new ProxyTunnelWorkerData();
 		tunnelDataA->sockA = clientSock;
-		tunnelDataA->sockAAddr = clientAddr;
+		tunnelDataA->sockAAddr = clientSockIp;
 		tunnelDataA->sockAPort = clientSrcPort;
 		tunnelDataA->sockB = destSock;
 		tunnelDataA->sockBAddr = proxyRecord.forwardAddr;
@@ -334,30 +358,30 @@ void DivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnecti
 		tunnelDataB->sockAAddr = proxyRecord.forwardAddr;
 		tunnelDataB->sockAPort = proxyRecord.forwardPort;
 		tunnelDataB->sockB = clientSock;
-		tunnelDataB->sockBAddr = clientAddr;
+		tunnelDataB->sockBAddr = clientSockIp;
 		tunnelDataB->sockBPort = clientSrcPort;
 		std::thread tunnelThread(&DivertProxy::ProxyTunnelWorker, this, tunnelDataA);
 		this->ProxyTunnelWorker(tunnelDataB);
-		tunnelThread.join();		
-	}	
+		tunnelThread.join();
+	}
 
 cleanup:
-	if(clientSock != NULL)
+	if (clientSock != NULL)
 		closesocket(clientSock);
 	if (destSock != NULL)
 		closesocket(destSock);
 
 	info("%s: ProxyConnectionWorker exiting for client %s:%hu", selfDesc.c_str(), srcAddr.c_str(), clientSrcPort);
-	return;	
+	return;
 }
 
 void DivertProxy::ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData)
 {
 	SOCKET sockA = proxyTunnelWorkerData->sockA;
-	std::string sockAAddrStr = ipToString(proxyTunnelWorkerData->sockAAddr);
+	std::string sockAAddrStr = proxyTunnelWorkerData->sockAAddr.to_string();
 	UINT16 sockAPort = proxyTunnelWorkerData->sockAPort;
 	SOCKET sockB = proxyTunnelWorkerData->sockB;
-	std::string sockBAddrStr = ipToString(proxyTunnelWorkerData->sockBAddr);
+	std::string sockBAddrStr = proxyTunnelWorkerData->sockBAddr.to_string();
 	UINT16 sockBPort = proxyTunnelWorkerData->sockBPort;
 	delete proxyTunnelWorkerData;
 	char buf[8192];
@@ -408,7 +432,7 @@ std::string DivertProxy::generateDivertFilterString()
 
 	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 	{
-		std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and ip.SrcAddr == " + ipToString(record->srcAddr) + ")";
+		std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and ip.SrcAddr == " + record->srcAddr.to_string() + ")";
 		orExpressions.push_back(recordFilterStr);
 	}
 
@@ -418,7 +442,7 @@ std::string DivertProxy::generateDivertFilterString()
 	return result;
 }
 
-bool DivertProxy::findProxyRecordBySrcAddr(UINT32 srcAddr, DIVERT_PROXY_RECORD& proxyRecord)
+bool DivertProxy::findProxyRecordBySrcAddr(IpAddr& srcAddr, RelayEntry& proxyRecord)
 {
 	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 	{
@@ -469,7 +493,7 @@ bool DivertProxy::Stop()
 	{
 		this->proxyThread.join();
 	}
-	
+
 	return true;
 }
 

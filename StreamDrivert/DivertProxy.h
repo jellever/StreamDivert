@@ -4,30 +4,24 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include "config.h"
 
 static void cleanup(HANDLE ioport, OVERLAPPED *ignore);
 
 
-struct DIVERT_PROXY_RECORD
-{
-	UINT32 srcAddr;
-	UINT32 forwardAddr;
-	UINT16 forwardPort;
-};
-
 struct ProxyConnectionWorkerData
 {
 	SOCKET clientSock;
-	sockaddr_in clientAddr;
+	sockaddr_in6 clientAddr;
 };
 
 struct ProxyTunnelWorkerData
 {
 	SOCKET sockA;
-	UINT32 sockAAddr;
+	IpAddr sockAAddr;
 	UINT16 sockAPort;
 	SOCKET sockB;
-	UINT32 sockBAddr;
+	IpAddr sockBAddr;
 	UINT16 sockBPort;
 };
 
@@ -48,7 +42,7 @@ private:
 
 	UINT16 localPort;
 	UINT16 localProxyPort;
-	std::vector<DIVERT_PROXY_RECORD> proxyRecords;
+	std::vector<RelayEntry> proxyRecords;
 	std::string filterStr;
 
 	std::string getFiendlyProxyRecordsStr();
@@ -58,9 +52,9 @@ private:
 	void ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData);
 	void ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData);
 	std::string generateDivertFilterString();
-	bool findProxyRecordBySrcAddr(UINT32 srcIp, DIVERT_PROXY_RECORD& proxyRecord);
+	bool findProxyRecordBySrcAddr(IpAddr& srcIp, RelayEntry& proxyRecord);
 public:
-	DivertProxy(UINT16 localPort, UINT16 proxyPort, std::vector<DIVERT_PROXY_RECORD> proxyRecords);
+	DivertProxy(const UINT16 localPort, const std::vector<RelayEntry>& proxyRecords);
 	~DivertProxy();
 	bool Start();
 	bool Stop();
