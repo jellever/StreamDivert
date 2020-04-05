@@ -38,7 +38,7 @@ int __cdecl main(int argc, char **argv)
 	for (auto cfg_proxy : cfg.proxies)
 	{
 		DivertProxy* proxy = new DivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
-		proxy->Start();
+		proxy->Start();		
 		proxies[cfg_proxy.first] = proxy;
 	}		
 	

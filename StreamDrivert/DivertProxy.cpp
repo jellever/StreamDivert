@@ -2,6 +2,7 @@
 #include "DivertProxy.h"
 #include "utils.h"
 #include "windivert.h"
+#include <ws2tcpip.h>
 
 /*
 * Cleanup completed I/O requests.
@@ -28,6 +29,7 @@ DivertProxy::DivertProxy(const UINT16 localPort, const std::vector<RelayEntry>& 
 	this->localProxyPort = 0;
 	this->proxyRecords = proxyRecords;
 	this->proxySock = NULL;
+	this->priority = 0;
 }
 
 DivertProxy::~DivertProxy()
@@ -43,7 +45,8 @@ bool DivertProxy::Start()
 	WSADATA wsa_data;
 	WORD wsa_version = MAKEWORD(2, 2);
 	int on = 1;
-	struct sockaddr_in addr;
+	int off = 0;
+	struct sockaddr_in6 addr;
 
 	//lock scope
 	{
@@ -56,7 +59,7 @@ bool DivertProxy::Start()
 			error("%s: failed to start WSA (%d)", selfDesc.c_str(), GetLastError());
 			goto failure;
 		}
-		this->proxySock = socket(AF_INET, SOCK_STREAM, 0);
+		this->proxySock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 		if (this->proxySock == INVALID_SOCKET)
 		{
 			error("%s: failed to create socket (%d)", selfDesc.c_str(), WSAGetLastError());
@@ -67,22 +70,29 @@ bool DivertProxy::Start()
 			error("%s: failed to re-use address (%d)", selfDesc.c_str(), GetLastError());
 			goto failure;
 		}
+		if (setsockopt(this->proxySock, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&off, sizeof(int)) == SOCKET_ERROR)
+		{
+			error("%s: failed to set socket dual-stack (%d)", selfDesc.c_str(), GetLastError());
+			goto failure;
+		}
 		memset(&addr, 0, sizeof(addr));
-		addr.sin_family = AF_INET;
-		addr.sin_port = 0;
+		addr.sin6_family = AF_INET6;
+		addr.sin6_port = htons(0);
+		addr.sin6_addr = in6addr_any;
+		//inet_pton(AF_INET6, "::1", &addr.sin6_addr);
 		if (::bind(this->proxySock, (SOCKADDR *)&addr, sizeof(addr)) == SOCKET_ERROR)
 		{
 			error("%s: failed to bind socket (%d)", selfDesc.c_str(), WSAGetLastError());
 			goto failure;
 		}
 
-		struct sockaddr_in bind_addr;
+		struct sockaddr_in6 bind_addr;
 		int bind_addr_len = sizeof(bind_addr);
 		if (getsockname(this->proxySock, (struct sockaddr *)&bind_addr, &bind_addr_len) == -1)
 		{
 			error("%s: failed to get bind socket port (%d)", selfDesc.c_str(), WSAGetLastError());
 		}
-		this->localProxyPort = ntohs(bind_addr.sin_port);
+		this->localProxyPort = ntohs(bind_addr.sin6_port);
 
 
 		if (listen(this->proxySock, 16) == SOCKET_ERROR)
@@ -163,14 +173,20 @@ std::string DivertProxy::getStringDesc()
 void DivertProxy::DivertWorker()
 {
 	OVERLAPPED overlapped;
-	OVERLAPPED* poverlapped;
-	unsigned char packet[MAXPACKETSIZE];
+	OVERLAPPED* poverlapped;	
+	unsigned char packet[WINDIVERT_MTU_MAX];
+	UINT packet_len = sizeof(packet);
 	WINDIVERT_ADDRESS addr;
 	PWINDIVERT_IPHDR ip_header;
 	PWINDIVERT_IPV6HDR ip6_header;
 	PWINDIVERT_TCPHDR tcp_header;
-	UINT packet_len;
+	IpAddr srcIp;
+	IpAddr dstIp;
+	UINT addr_len = sizeof(WINDIVERT_ADDRESS);
+	UINT recv_packet_len = 0;
+	UINT recv_len = 0;
 	DWORD len;
+	UINT8 protocol;
 	std::string selfDesc = this->getStringDesc();
 
 	while (TRUE)
@@ -178,11 +194,12 @@ void DivertProxy::DivertWorker()
 		memset(&overlapped, 0, sizeof(overlapped));
 		ResetEvent(this->event);
 		overlapped.hEvent = this->event;
-		if (!WinDivertRecvEx(this->hDivert, packet, sizeof(packet), 0, &addr, &packet_len, &overlapped))
+		if (!WinDivertRecvEx(this->hDivert, &packet[0], packet_len, &recv_len, 0, &addr, &addr_len, &overlapped))
 		{
 			DWORD lastErr = GetLastError();
 			if (lastErr == ERROR_INVALID_HANDLE || lastErr == ERROR_OPERATION_ABORTED)
 			{
+				//error("%s: WinDivertRecvEx failed: (%d)", selfDesc.c_str(), lastErr);
 				goto end;
 			}
 			else if (lastErr != ERROR_IO_PENDING)
@@ -201,64 +218,80 @@ void DivertProxy::DivertWorker()
 			{
 				goto read_failed;
 			}
-			packet_len = len;
+			recv_packet_len = len;
 		}
 		cleanup(this->ioPort, &overlapped);
 
-		if (!WinDivertHelperParsePacket(packet, packet_len, &ip_header, &ip6_header, NULL, NULL, &tcp_header, NULL, NULL, NULL))
+		if (!WinDivertHelperParsePacket(&packet[0], recv_packet_len, &ip_header, &ip6_header, &protocol, NULL, NULL, &tcp_header, NULL, NULL, NULL, NULL, NULL))
 		{
 			warning("%s: failed to parse packet (%d)", selfDesc.c_str(), GetLastError());
 			continue;
 		}
-
-		std::string srcIp = ipToString(ntohl(ip_header->SrcAddr));
-		std::string dstIp = ipToString(ntohl(ip_header->DstAddr));
-		UINT16 srcPort = ntohs(tcp_header->SrcPort);
-		UINT16 dstPort = ntohs(tcp_header->DstPort);
-		std::string direction_str = addr.Direction == WINDIVERT_DIRECTION_OUTBOUND ? "OUT" : "IN";
-		info("%s: Packet %s:%hu %s:%hu %s", selfDesc.c_str(), srcIp.c_str(), srcPort, dstIp.c_str(), dstPort, direction_str.c_str());
-
-		switch (addr.Direction)
+		
+		if (ip_header != NULL)
 		{
-		case WINDIVERT_DIRECTION_OUTBOUND:
-			for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
-			{
-				if (ip_header->DstAddr == htonl(record->srcAddr) &&
-					tcp_header->SrcPort == htons(this->localProxyPort))
-				{
-					UINT32 dstAddr = ntohl(ip_header->DstAddr);
-					std::string dstAddrStr = ipToString(dstAddr);
-					info("%s: Modify packet src -> %s:%hu", selfDesc.c_str(), dstAddrStr.c_str(), this->localPort);
-
-					tcp_header->SrcPort = htons(this->localPort);
-				}
-			}
-			break;
-
-		case WINDIVERT_DIRECTION_INBOUND:
-			for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
-			{
-				if (ip_header->SrcAddr == htonl(record->srcAddr) &&
-					tcp_header->DstPort == htons(this->localPort))
-				{
-					UINT32 dstAddr = ntohl(ip_header->DstAddr);
-					std::string dstAddrStr = ipToString(dstAddr);
-					info("%s: Modify packet dst -> %s:%hu", selfDesc.c_str(), dstAddrStr.c_str(), this->localProxyPort);
-
-					tcp_header->DstPort = htons(this->localProxyPort);
-				}
-			}
-			break;
+			in_addr temp_addr;
+			temp_addr.S_un.S_addr = ip_header->SrcAddr;
+			srcIp = IpAddr(temp_addr);
+			temp_addr.S_un.S_addr = ip_header->DstAddr;
+			dstIp = IpAddr(temp_addr);
+		}
+		else if (ip6_header != NULL)
+		{
+			in6_addr temp_addr;
+			memcpy(ip6_header->SrcAddr, &temp_addr.u.Byte[0], sizeof(in6_addr));
+			srcIp = IpAddr(temp_addr);
+			memcpy(ip6_header->DstAddr, &temp_addr.u.Byte[0], sizeof(in6_addr));
+			dstIp = IpAddr(temp_addr);
 		}
 
-		WinDivertHelperCalcChecksums(packet, packet_len, &addr, 0);
+		std::string srcIpStr = srcIp.to_string();
+		std::string dstIpStr = dstIp.to_string();
+		
+		UINT16 srcPort = ntohs(tcp_header->SrcPort);
+		UINT16 dstPort = ntohs(tcp_header->DstPort);
+		std::string direction_str = addr.Outbound == 1 ? "OUT" : "IN";
+		info("%s: Packet %s:%hu %s:%hu %s", selfDesc.c_str(), srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());
+
+		if (true)
+		{
+			if (addr.Outbound == 1)
+			{
+				for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
+				{
+					if (dstIp == record->srcAddr &&
+						tcp_header->SrcPort == htons(this->localProxyPort))
+					{
+						info("%s: Modify packet src -> %s:%hu", selfDesc.c_str(), dstIpStr.c_str(), this->localPort);
+						tcp_header->SrcPort = htons(this->localPort);
+					}
+				}
+			}
+			else
+			{
+				for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
+				{
+					if (srcIp == record->srcAddr &&
+						tcp_header->DstPort == htons(this->localPort))
+					{
+						info("%s: Modify packet dst -> %s:%hu", selfDesc.c_str(), dstIpStr.c_str(), this->localProxyPort);
+						tcp_header->DstPort = htons(this->localProxyPort);
+					}
+				}
+			}
+		}
+
+		if (!WinDivertHelperCalcChecksums(&packet[0], recv_packet_len, &addr, 0))
+		{
+			error("%s: failed to recalc packet checksum: (%d)", selfDesc.c_str(), GetLastError());
+		}
 		poverlapped = (OVERLAPPED *)malloc(sizeof(OVERLAPPED));
 		if (poverlapped == NULL)
 		{
 			error("%s: failed to allocate poverlapped memory", selfDesc.c_str());
 		}
 		memset(poverlapped, 0, sizeof(OVERLAPPED));
-		if (WinDivertSendEx(this->hDivert, packet, packet_len, 0, &addr, NULL, poverlapped))
+		if (WinDivertSendEx(this->hDivert, &packet[0], recv_packet_len, NULL, 0, &addr, addr_len , poverlapped))
 		{
 			continue;
 		}
@@ -278,7 +311,7 @@ void DivertProxy::ProxyWorker()
 	std::string selfDesc = this->getStringDesc();
 	while (true)
 	{
-		struct sockaddr_in6 clientSockAddr;
+		struct sockaddr_in6  clientSockAddr;
 		int size = sizeof(clientSockAddr);
 		SOCKET incommingSock = accept(this->proxySock, (SOCKADDR *)&clientSockAddr, &size);
 		if (incommingSock == INVALID_SOCKET)
@@ -311,6 +344,7 @@ cleanup:
 
 void DivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData)
 {
+	int off = 0;
 	SOCKET destSock = NULL;
 	SOCKET clientSock = proxyConnectionWorkerData->clientSock;
 	sockaddr_in6 clientSockAddr = proxyConnectionWorkerData->clientAddr;
@@ -330,10 +364,15 @@ void DivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnecti
 		destAddr.sin6_family = AF_INET6;
 		destAddr.sin6_addr = proxyRecord.forwardAddr.get_addr();
 		destAddr.sin6_port = htons(proxyRecord.forwardPort);
-		destSock = socket(AF_INET, SOCK_STREAM, 0);
+		destSock = socket(AF_INET6, SOCK_STREAM, 0);
 		if (destSock == INVALID_SOCKET)
 		{
 			error("%s: failed to create socket (%d)", selfDesc.c_str(), WSAGetLastError());
+			goto cleanup;
+		}
+		if (setsockopt(destSock, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&off, sizeof(int)) == SOCKET_ERROR)
+		{
+			error("%s: failed to set connect socket dual-stack (%d)", selfDesc.c_str(), GetLastError());
 			goto cleanup;
 		}
 		std::string forwardAddr = proxyRecord.forwardAddr.to_string();
