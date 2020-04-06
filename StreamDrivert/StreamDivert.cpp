@@ -12,7 +12,8 @@
 #include <vector>
 #include <future>
 #include "StreamDivert.h"
-#include "DivertProxy.h"
+#include "InboundDivertProxy.h"
+#include "OutboundDivertProxy.h"
 #include "utils.h"
 #include "config.h"
 
@@ -33,26 +34,22 @@ int __cdecl main(int argc, char **argv)
 	}
 	
 	RelayConfig cfg = LoadConfig(argv[1]);
-	std::map<UINT16, DivertProxy*> proxies;
+	std::vector<BaseProxy*> proxies;
 
-	for (auto cfg_proxy : cfg.proxies)
+	for (auto cfg_proxy : cfg.inboundProxies)
 	{
-		DivertProxy* proxy = new DivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
-		proxy->Start();		
-		proxies[cfg_proxy.first] = proxy;
-	}		
-	
+		InboundDivertProxy* proxy = new InboundDivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
+		proxy->Start();
+		proxies.push_back(proxy);
+	}
+
+	OutboundDivertProxy* proxy = new OutboundDivertProxy(cfg.outboundProxy.relayEntries);
+	proxy->Start();
+	proxies.push_back(proxy);
 
 	//Wait indefinitely
 	std::promise<void> p;
-	p.get_future().wait();
-
-	/*
-	Config cfg;
-	cfg.proxyPort = PROXY_PORT;
-	cfg.divertRecords = parseCfgFile(config_file_data, filesize);	
-	runProxy(&cfg);
-	*/
+	p.get_future().wait();	
 }
 
 

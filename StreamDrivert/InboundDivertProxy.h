@@ -4,6 +4,8 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include "windivert.h"
+#include "BaseProxy.h"
 #include "config.h"
 
 static void cleanup(HANDLE ioport, OVERLAPPED *ignore);
@@ -27,35 +29,27 @@ struct ProxyTunnelWorkerData
 
 #define MAXPACKETSIZE			0xFFFF
 
-class DivertProxy
+class InboundDivertProxy : public BaseProxy
 {
-private:
-	bool running;
-	HANDLE hDivert;
-	HANDLE ioPort;
-	HANDLE event;
+protected:
 	SOCKET proxySock;
-	std::thread divertThread;
 	std::thread proxyThread;
-	INT16 priority;
-	std::mutex resourceLock;
 
 	UINT16 localPort;
 	UINT16 localProxyPort;
-	std::vector<RelayEntry> proxyRecords;
-	std::string filterStr;
+	std::vector<InboundRelayEntry> proxyRecords;
 
 	std::string getFiendlyProxyRecordsStr();
 	std::string getStringDesc();
-	void DivertWorker();
+	void ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, UINT8 protocol, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr);
 	void ProxyWorker();
 	void ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData);
 	void ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData);
 	std::string generateDivertFilterString();
-	bool findProxyRecordBySrcAddr(IpAddr& srcIp, RelayEntry& proxyRecord);
+	bool findProxyRecordBySrcAddr(IpAddr& srcIp, InboundRelayEntry& proxyRecord);
 public:
-	DivertProxy(const UINT16 localPort, const std::vector<RelayEntry>& proxyRecords);
-	~DivertProxy();
+	InboundDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords);
+	~InboundDivertProxy();
 	bool Start();
 	bool Stop();
 };

@@ -87,6 +87,11 @@ in6_addr IpAddr::get_addr()
 	return this->m_addr;
 }
 
+in_addr IpAddr::get_ipv4_addr()
+{
+	return *(in_addr*)&this->m_addr.s6_addr[12];
+}
+
 bool IpAddr::operator==(const IpAddr& addr2)
 {
 	return memcmp(&this->m_addr, &addr2.m_addr, sizeof(in6_addr)) == 0;

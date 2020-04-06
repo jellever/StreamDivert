@@ -36,4 +36,5 @@ public:
 	IPFamily get_family();
 	std::string to_string();
 	in6_addr get_addr();
+	in_addr get_ipv4_addr();
 };
