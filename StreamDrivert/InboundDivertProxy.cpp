@@ -294,10 +294,8 @@ void InboundDivertProxy::ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWor
 			int sendLen = send(sockB, buf + i, recvLen - i, 0);
 			if (sendLen == SOCKET_ERROR)
 			{
-				warning("%s: failed to send to socket B(%s:%hu): %d", selfDesc.c_str(), sockBAddrStr.c_str(), sockBPort, WSAGetLastError());
-				shutdown(sockA, SD_BOTH);
-				shutdown(sockB, SD_BOTH);
-				goto end; //return
+				warning("%s: failed to send to socket B(%s:%hu): %d", selfDesc.c_str(), sockBAddrStr.c_str(), sockBPort, WSAGetLastError());				
+				goto failure; //return
 			}
 			i += sendLen;
 		}

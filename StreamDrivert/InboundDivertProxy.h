@@ -27,7 +27,6 @@ struct ProxyTunnelWorkerData
 	UINT16 sockBPort;
 };
 
-#define MAXPACKETSIZE			0xFFFF
 
 class InboundDivertProxy : public BaseProxy
 {
