@@ -334,8 +334,16 @@ std::string InboundDivertProxy::generateDivertFilterString()
 	{
 		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 		{
-			std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and ip.SrcAddr == " + record->srcAddr.to_string() + ")";
-			orExpressions.push_back(recordFilterStr);
+			if (record->srcAddr.get_family() == IPFamily::IPv4)
+			{
+				std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and ip.SrcAddr == " + record->srcAddr.to_string() + ")";
+				orExpressions.push_back(recordFilterStr);
+			}
+			else if (record->srcAddr.get_family() == IPFamily::IPv6)
+			{
+				std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and ipv6.SrcAddr == " + record->srcAddr.to_string() + ")";
+				orExpressions.push_back(recordFilterStr);
+			}
 		}
 	}
 

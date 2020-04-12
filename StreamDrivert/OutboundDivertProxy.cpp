@@ -37,10 +37,29 @@ std::string OutboundDivertProxy::generateDivertFilterString()
 		}
 		else
 		{
-			recordFilterStr = "(ip.DstAddr == " + record->dstAddr.to_string() + " and tcp.DstPort == " + std::to_string(record->dstPort) + ")";
-			orExpressions.push_back(recordFilterStr);
-			recordFilterStr = "(ip.SrcAddr == " + record->forwardAddr.to_string() + " and tcp.SrcPort == " + std::to_string(record->forwardPort) + ")";
-			orExpressions.push_back(recordFilterStr);
+			if (record->dstAddr.get_family() == IPFamily::IPv4)
+			{
+				recordFilterStr = "(ip.DstAddr == " + record->dstAddr.to_string() + " and tcp.DstPort == " + std::to_string(record->dstPort) + ")";
+				orExpressions.push_back(recordFilterStr);
+			}
+			else if (record->dstAddr.get_family() == IPFamily::IPv6)
+			{
+				recordFilterStr = "(ipv6.DstAddr == " + record->dstAddr.to_string() + " and tcp.DstPort == " + std::to_string(record->dstPort) + ")";
+				orExpressions.push_back(recordFilterStr);
+			}
+			
+
+
+			if (record->forwardAddr.get_family() == IPFamily::IPv4)
+			{
+				recordFilterStr = "(ipv6.SrcAddr == " + record->forwardAddr.to_string() + " and tcp.SrcPort == " + std::to_string(record->forwardPort) + ")";
+				orExpressions.push_back(recordFilterStr);
+			}
+			else if (record->forwardAddr.get_family() == IPFamily::IPv6)
+			{
+				recordFilterStr = "(ipv6.SrcAddr == " + record->forwardAddr.to_string() + " and tcp.SrcPort == " + std::to_string(record->forwardPort) + ")";
+				orExpressions.push_back(recordFilterStr);
+			}			
 		}
 	}
 	
@@ -52,7 +71,7 @@ std::string OutboundDivertProxy::generateDivertFilterString()
 
 void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, UINT8 protocol, PWINDIVERT_TCPHDR tcp_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
 {
-	if (ip_hdr)
+	if (true)
 	{
 		if (addr->Outbound == 1)
 		{
@@ -69,7 +88,14 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 						key.port = tcp_hdr->SrcPort;
 						this->incomingMap[key] = { dstAddr, tcp_hdr->DstPort };						
 					}
-					ip_hdr->DstAddr = record->forwardAddr.get_ipv4_addr().S_un.S_addr;
+					if (ip_hdr)
+					{
+						ip_hdr->DstAddr = record->forwardAddr.get_ipv4_addr().S_un.S_addr;
+					}
+					else if (ip6_hdr)
+					{
+						*(in6_addr*)&ip6_hdr->DstAddr[0] = record->forwardAddr.get_addr();
+					}
 					tcp_hdr->DstPort = htons(record->forwardPort);
 				}
 			}
@@ -89,15 +115,29 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 						std::map<EndpointKey, Endpoint>::iterator it = this->incomingMap.find(key);
 						if (it != this->incomingMap.end())
 						{
-							IpAddr& addr = it->second.addr;
-							ip_hdr->SrcAddr = addr.get_ipv4_addr().S_un.S_addr;
+							IpAddr& addr = it->second.addr;							
+							if (ip_hdr)
+							{
+								ip_hdr->SrcAddr = addr.get_ipv4_addr().S_un.S_addr;
+							}
+							else if (ip6_hdr)
+							{
+								*(in6_addr*)&ip6_hdr->SrcAddr[0] = addr.get_addr();
+							}
 							tcp_hdr->SrcPort = it->second.port;
 							info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), addr.to_string().c_str(), ntohs(it->second.port));
 						}						
 					}
 					else
 					{
-						ip_hdr->SrcAddr = record->dstAddr.get_ipv4_addr().S_un.S_addr;
+						if (ip_hdr)
+						{
+							ip_hdr->SrcAddr = record->dstAddr.get_ipv4_addr().S_un.S_addr;
+						}
+						else if (ip6_hdr)
+						{
+							*(in6_addr*)&ip6_hdr->SrcAddr[0] = record->dstAddr.get_addr();
+						}
 						tcp_hdr->SrcPort = htons(record->dstPort);
 						info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), record->dstAddr.to_string().c_str(), record->dstPort);
 					}					
@@ -105,11 +145,6 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 			}
 		}
 	}
-}
-
-bool OutboundDivertProxy::findProxyRecordByDstAddr(IpAddr & dstAddr, OutboundRelayEntry & proxyRecord)
-{
-	return false;
 }
 
 OutboundDivertProxy::OutboundDivertProxy(std::vector<OutboundRelayEntry>& relayEntries)
@@ -121,4 +156,10 @@ OutboundDivertProxy::OutboundDivertProxy(std::vector<OutboundRelayEntry>& relayE
 
 OutboundDivertProxy::~OutboundDivertProxy()
 {
+}
+
+bool OutboundDivertProxy::Stop()
+{
+	this->incomingMap.clear();
+	return BaseProxy::Stop();
 }

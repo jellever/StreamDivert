@@ -44,7 +44,7 @@ int __cdecl main(int argc, char **argv)
 	}
 
 	OutboundDivertProxy* proxy = new OutboundDivertProxy(cfg.outboundProxy.relayEntries);
-	proxy->Start();
+	proxy->Start();	
 	proxies.push_back(proxy);
 
 	//Wait indefinitely

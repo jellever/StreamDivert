@@ -104,9 +104,9 @@ void BaseProxy::DivertWorker()
 		else if (ip6_header != NULL)
 		{
 			in6_addr temp_addr;
-			memcpy(ip6_header->SrcAddr, &temp_addr.u.Byte[0], sizeof(in6_addr));
+			memcpy(&temp_addr.u.Byte[0], ip6_header->SrcAddr, sizeof(in6_addr));
 			srcIp = IpAddr(temp_addr);
-			memcpy(ip6_header->DstAddr, &temp_addr.u.Byte[0], sizeof(in6_addr));
+			memcpy(&temp_addr.u.Byte[0], ip6_header->DstAddr, sizeof(in6_addr));
 			dstIp = IpAddr(temp_addr);
 		}
 

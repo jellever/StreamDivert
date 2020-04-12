@@ -20,7 +20,7 @@ RelayConfig LoadConfig(std::string path)
 		char forwardAddr[200] = { 0 };
 		UINT16 forwardPort = 0;
 
-		int match = sscanf_s(line.c_str(), "< %hu:%s -> %[^\:]:%hu", &localPort, &srcAddr[0], _countof(srcAddr), &forwardAddr[0], _countof(forwardAddr), &forwardPort);
+		int match = sscanf_s(line.c_str(), "< %hu %s -> %s %hu", &localPort, &srcAddr[0], _countof(srcAddr), &forwardAddr[0], _countof(forwardAddr), &forwardPort);
 		if (match == 4)
 		{
 			InboundRelayProxy& proxy = result.inboundProxies[localPort];
@@ -33,7 +33,7 @@ RelayConfig LoadConfig(std::string path)
 		}
 		else
 		{
-			match = sscanf_s(line.c_str(), "> %[^\:]:%hu -> %[^\:]:%hu", &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort);
+			match = sscanf_s(line.c_str(), "> %s %hu -> %s %hu", &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort);
 			if (match == 4)
 			{
 				OutboundRelayProxy& proxy = result.outboundProxy;

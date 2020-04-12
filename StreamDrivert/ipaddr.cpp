@@ -2,7 +2,7 @@
 #include "ipaddr.h"
 #include <cstring>
 #include <ws2tcpip.h>
-
+#include "utils.h"
 
 
 void IpAddr::initIpv4(const in_addr & addr)
@@ -40,7 +40,7 @@ IpAddr::IpAddr(const std::string & addrstr)
 		this->initIpv4(addr);
 	}
 	struct in6_addr addr6;
-	bool isipv6 = inet_pton(AF_INET6, addrstr.c_str(), &addr) != 0;
+	bool isipv6 = inet_pton(AF_INET6, addrstr.c_str(), &addr6) != 0;
 	if (isipv6)
 	{
 		this->initIpv6(addr6);
@@ -72,11 +72,19 @@ std::string IpAddr::to_string()
 	{
 		result.resize(INET_ADDRSTRLEN);		
 		const char* r = inet_ntop(AF_INET, &this->m_addr.s6_addr[12], &result[0], INET_ADDRSTRLEN);
+		if (r == NULL)
+		{
+			error("Failed to convert ip to ipv4 address string!");
+		}
 	}
 	else if(ipfamily == IPFamily::IPv6)
 	{
 		result.resize(INET6_ADDRSTRLEN);		
 		const char* r = inet_ntop(AF_INET6, &this->m_addr, &result[0], INET6_ADDRSTRLEN);
+		if (r == NULL)
+		{
+			error("Failed to convert ip to ipv6 address string!");
+		}
 	}
 	result.resize(strlen(result.c_str()));
 	return result;
