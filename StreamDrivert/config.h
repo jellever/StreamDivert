@@ -14,12 +14,14 @@ struct InboundRelayEntry
 
 struct InboundRelayProxy
 {
+	std::string protocol;
 	UINT16 localPort;
 	std::vector<InboundRelayEntry> relayEntries;
 };
 
 struct OutboundRelayEntry
 {
+	std::string protocol;
 	IpAddr dstAddr;
 	UINT16 dstPort;
 	IpAddr forwardAddr;
@@ -33,7 +35,9 @@ struct OutboundRelayProxy
 
 struct RelayConfig
 {
-	std::map<UINT16, InboundRelayProxy> inboundProxies;
+	std::map<UINT16, InboundRelayProxy> inboundTCPProxies;
+	std::map<UINT16, InboundRelayProxy> inboundICMPProxies;
+	std::map<UINT16, InboundRelayProxy> inboundUDPProxies;
 	OutboundRelayProxy outboundProxy;
 };
 

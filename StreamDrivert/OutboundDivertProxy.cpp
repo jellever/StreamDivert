@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "OutboundDivertProxy.h"
 #include "utils.h"
+#include <set>
 
 
 std::string OutboundDivertProxy::getFiendlyProxyRecordsStr()
@@ -22,12 +23,18 @@ std::string OutboundDivertProxy::getStringDesc()
 
 std::string OutboundDivertProxy::generateDivertFilterString()
 {
-	std::string result = "tcp";
+	std::string result = "";
+	std::set<std::string> protocols;
 	std::vector<std::string> orExpressions;	
 	std::string recordFilterStr;	
 
 	for (auto record = this->relayEntries.begin(); record != this->relayEntries.end(); ++record)
 	{
+		//TODO: Does this also capture icmpv6??
+		if (record->protocol == "tcp" || record->protocol == "icmp" || record->protocol == "udp")
+		{
+			protocols.insert(record->protocol);
+		}
 		if (record->dstAddr == anyIpAddr)
 		{
 			recordFilterStr = "(tcp.DstPort == " + std::to_string(record->dstPort) + ")";
@@ -47,8 +54,6 @@ std::string OutboundDivertProxy::generateDivertFilterString()
 				recordFilterStr = "(ipv6.DstAddr == " + record->dstAddr.to_string() + " and tcp.DstPort == " + std::to_string(record->dstPort) + ")";
 				orExpressions.push_back(recordFilterStr);
 			}
-			
-
 
 			if (record->forwardAddr.get_family() == IPFamily::IPv4)
 			{
@@ -62,14 +67,17 @@ std::string OutboundDivertProxy::generateDivertFilterString()
 			}			
 		}
 	}
-	
+	result = "(";
+	joinStr(protocols, std::string(" or "), result);
+	result += ")";
+
 	result += " and (";
 	joinStr(orExpressions, std::string(" or "), result);
 	result += ")";
 	return result;
 }
 
-void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, UINT8 protocol, PWINDIVERT_TCPHDR tcp_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
 {
 	if (true)
 	{
@@ -162,4 +170,12 @@ bool OutboundDivertProxy::Stop()
 {
 	this->incomingMap.clear();
 	return BaseProxy::Stop();
+}
+
+void OutboundDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+{
+}
+
+void OutboundDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
+{
 }

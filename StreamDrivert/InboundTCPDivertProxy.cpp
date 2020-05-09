@@ -1,11 +1,11 @@
 #include "stdafx.h"
-#include "InboundDivertProxy.h"
+#include "InboundTCPDivertProxy.h"
 #include "utils.h"
 #include "windivert.h"
 #include <ws2tcpip.h>
 
 
-InboundDivertProxy::InboundDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords)
+InboundTCPDivertProxy::InboundTCPDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords)
 {	
 	this->localPort = localPort;
 	this->localProxyPort = 0;
@@ -14,7 +14,7 @@ InboundDivertProxy::InboundDivertProxy(const UINT16 localPort, const std::vector
 	this->selfDescStr = this->getStringDesc();
 }
 
-InboundDivertProxy::~InboundDivertProxy()
+InboundTCPDivertProxy::~InboundTCPDivertProxy()
 {
 	if (this->running)
 	{
@@ -22,7 +22,7 @@ InboundDivertProxy::~InboundDivertProxy()
 	}
 }
 
-bool InboundDivertProxy::Start()
+bool InboundTCPDivertProxy::Start()
 {
 	WSADATA wsa_data;
 	WORD wsa_version = MAKEWORD(2, 2);
@@ -85,7 +85,7 @@ bool InboundDivertProxy::Start()
 		BaseProxy::Start();
 	}//lock scope
 
-	this->proxyThread = std::thread(&InboundDivertProxy::ProxyWorker, this);
+	this->proxyThread = std::thread(&InboundTCPDivertProxy::ProxyWorker, this);
 	return true;
 
 failure:
@@ -94,7 +94,7 @@ failure:
 }
 
 
-std::string InboundDivertProxy::getFiendlyProxyRecordsStr()
+std::string InboundTCPDivertProxy::getFiendlyProxyRecordsStr()
 {
 	std::string result;
 	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
@@ -105,7 +105,7 @@ std::string InboundDivertProxy::getFiendlyProxyRecordsStr()
 	return result;
 }
 
-std::string InboundDivertProxy::getStringDesc()
+std::string InboundTCPDivertProxy::getStringDesc()
 {
 	std::string result = std::string("InboundDivertProxy(" + std::to_string(this->localPort) + ":");
 	if (this->localProxyPort == 0)
@@ -120,7 +120,7 @@ std::string InboundDivertProxy::getStringDesc()
 	return result;
 }
 
-void InboundDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, UINT8 protocol, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr)
+void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr)
 {
 	if (true)
 	{
@@ -155,7 +155,7 @@ void InboundDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet_le
 
 
 
-void InboundDivertProxy::ProxyWorker()
+void InboundTCPDivertProxy::ProxyWorker()
 {	
 	while (true)
 	{
@@ -178,7 +178,7 @@ void InboundDivertProxy::ProxyWorker()
 		ProxyConnectionWorkerData* proxyConnectionWorkerData = new ProxyConnectionWorkerData();
 		proxyConnectionWorkerData->clientSock = incommingSock;
 		proxyConnectionWorkerData->clientAddr = clientSockAddr;
-		std::thread proxyConnectionThread(&InboundDivertProxy::ProxyConnectionWorker, this, proxyConnectionWorkerData);
+		std::thread proxyConnectionThread(&InboundTCPDivertProxy::ProxyConnectionWorker, this, proxyConnectionWorkerData);
 		proxyConnectionThread.detach();
 	}
 cleanup:
@@ -190,7 +190,7 @@ cleanup:
 	info("%s: ProxyWorker exiting", this->selfDescStr.c_str());
 }
 
-void InboundDivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData)
+void InboundTCPDivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData)
 {
 	int off = 0;
 	SOCKET destSock = NULL;
@@ -247,7 +247,7 @@ void InboundDivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyC
 		tunnelDataB->sockB = clientSock;
 		tunnelDataB->sockBAddr = clientSockIp;
 		tunnelDataB->sockBPort = clientSrcPort;
-		std::thread tunnelThread(&InboundDivertProxy::ProxyTunnelWorker, this, tunnelDataA);
+		std::thread tunnelThread(&InboundTCPDivertProxy::ProxyTunnelWorker, this, tunnelDataA);
 		this->ProxyTunnelWorker(tunnelDataB);
 		tunnelThread.join();
 	}
@@ -262,7 +262,7 @@ cleanup:
 	return;
 }
 
-void InboundDivertProxy::ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData)
+void InboundTCPDivertProxy::ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData)
 {
 	SOCKET sockA = proxyTunnelWorkerData->sockA;
 	std::string sockAAddrStr = proxyTunnelWorkerData->sockAAddr.to_string();
@@ -308,7 +308,7 @@ end:
 	info("%s: ProxyTunnelWorker(%s:%hu -> %s:%hu) exiting", selfDesc.c_str(), sockAAddrStr.c_str(), sockAPort, sockBAddrStr.c_str(), sockBPort);
 }
 
-std::string InboundDivertProxy::generateDivertFilterString()
+std::string InboundTCPDivertProxy::generateDivertFilterString()
 {
 	std::string result = "tcp";
 	std::vector<std::string> orExpressions;
@@ -351,7 +351,7 @@ std::string InboundDivertProxy::generateDivertFilterString()
 	return result;
 }
 
-bool InboundDivertProxy::findProxyRecordBySrcAddr(IpAddr& srcAddr, InboundRelayEntry& proxyRecord)
+bool InboundTCPDivertProxy::findProxyRecordBySrcAddr(IpAddr& srcAddr, InboundRelayEntry& proxyRecord)
 {
 	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 	{
@@ -364,7 +364,7 @@ bool InboundDivertProxy::findProxyRecordBySrcAddr(IpAddr& srcAddr, InboundRelayE
 	return false;
 }
 
-bool InboundDivertProxy::Stop()
+bool InboundTCPDivertProxy::Stop()
 {	
 	info("%s: Stop", this->selfDescStr.c_str());
 	{//lock scope
@@ -384,5 +384,13 @@ bool InboundDivertProxy::Stop()
 	}
 
 	return true;
+}
+
+void InboundTCPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+{
+}
+
+void InboundTCPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
+{
 }
 

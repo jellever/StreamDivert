@@ -151,26 +151,35 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <Text Include="cfg.txt" />
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="DivertProxy.h" />
+    <ClInclude Include="config.h" />
+    <ClInclude Include="InboundTCPDivertProxy.h" />
+    <ClInclude Include="ipaddr.h" />
+    <ClInclude Include="BaseProxy.h" />
+    <ClInclude Include="OutboundDivertProxy.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="stdafx.h" />
-    <ClInclude Include="StreamDrivert.h" />
+    <ClInclude Include="StreamDivert.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="windivert.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="DivertProxy.cpp" />
+    <ClCompile Include="config.cpp" />
+    <ClCompile Include="InboundTCPDivertProxy.cpp" />
+    <ClCompile Include="ipaddr.cpp" />
+    <ClCompile Include="BaseProxy.cpp" />
+    <ClCompile Include="OutboundDivertProxy.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="StreamDrivert.cpp">
+    <ClCompile Include="StreamDivert.cpp">
       <FileType>CppCode</FileType>
     </ClCompile>
     <ClCompile Include="utils.cpp" />

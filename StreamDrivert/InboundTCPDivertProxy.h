@@ -28,7 +28,7 @@ struct ProxyTunnelWorkerData
 };
 
 
-class InboundDivertProxy : public BaseProxy
+class InboundTCPDivertProxy : public BaseProxy
 {
 protected:
 	SOCKET proxySock;
@@ -40,15 +40,18 @@ protected:
 
 	std::string getFiendlyProxyRecordsStr();
 	std::string getStringDesc();
-	void ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, UINT8 protocol, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr);
+	void ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr);
+	void ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr);
+	void ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr);
 	void ProxyWorker();
 	void ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData);
 	void ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData);
 	std::string generateDivertFilterString();
 	bool findProxyRecordBySrcAddr(IpAddr& srcIp, InboundRelayEntry& proxyRecord);
 public:
-	InboundDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords);
-	~InboundDivertProxy();
+	InboundTCPDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords);
+	~InboundTCPDivertProxy();
 	bool Start();
 	bool Stop();
-};
+
+	};

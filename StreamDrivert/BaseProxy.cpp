@@ -45,6 +45,9 @@ void BaseProxy::DivertWorker()
 	PWINDIVERT_IPHDR ip_header;
 	PWINDIVERT_IPV6HDR ip6_header;
 	PWINDIVERT_TCPHDR tcp_header;
+	PWINDIVERT_ICMPHDR icmp_header;
+	PWINDIVERT_ICMPV6HDR icmp6_header;
+	PWINDIVERT_UDPHDR udp_header;
 	IpAddr srcIp;
 	IpAddr dstIp;
 	UINT addr_len = sizeof(WINDIVERT_ADDRESS);
@@ -65,7 +68,7 @@ void BaseProxy::DivertWorker()
 			if (lastErr == ERROR_INVALID_HANDLE || lastErr == ERROR_OPERATION_ABORTED)
 			{
 				//error("%s: WinDivertRecvEx failed: (%d)", selfDesc.c_str(), lastErr);
-				goto end;
+				goto END;
 			}
 			else if (lastErr != ERROR_IO_PENDING)
 			{
@@ -87,39 +90,62 @@ void BaseProxy::DivertWorker()
 		}
 		cleanup(this->ioPort, &overlapped);
 
-		if (!WinDivertHelperParsePacket(&packet[0], recv_packet_len, &ip_header, &ip6_header, &protocol, NULL, NULL, &tcp_header, NULL, NULL, NULL, NULL, NULL))
+		if (WinDivertHelperParsePacket(&packet[0], recv_packet_len, &ip_header, &ip6_header, &protocol, &icmp_header, &icmp6_header, &tcp_header, &udp_header, NULL, NULL, NULL, NULL))
+		{
+			bool packet_contains_iphdr = true;
+			if (ip_header != NULL)
+			{
+				in_addr temp_addr;
+				temp_addr.S_un.S_addr = ip_header->SrcAddr;
+				srcIp = IpAddr(temp_addr);
+				temp_addr.S_un.S_addr = ip_header->DstAddr;
+				dstIp = IpAddr(temp_addr);
+			}
+			else if (ip6_header != NULL)
+			{
+				in6_addr temp_addr;
+				memcpy(&temp_addr.u.Byte[0], ip6_header->SrcAddr, sizeof(in6_addr));
+				srcIp = IpAddr(temp_addr);
+				memcpy(&temp_addr.u.Byte[0], ip6_header->DstAddr, sizeof(in6_addr));
+				dstIp = IpAddr(temp_addr);
+			}
+			else
+			{
+				packet_contains_iphdr = false;
+				error("%s: No IP header in packet!?", selfDesc.c_str());
+			}
+
+			if (packet_contains_iphdr)
+			{
+				std::string srcIpStr = srcIp.to_string();
+				std::string dstIpStr = dstIp.to_string();
+				std::string direction_str = addr.Outbound == 1 ? "OUT" : "IN";
+
+				if (protocol == IPPROTO_TCP)
+				{
+					UINT16 srcPort = ntohs(tcp_header->SrcPort);
+					UINT16 dstPort = ntohs(tcp_header->DstPort);					
+					info("%s: TCP Packet %s:%hu %s:%hu %s", selfDesc.c_str(), srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());										
+					this->ProcessTCPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header,  tcp_header, srcIp, dstIp);
+				}
+				else if(protocol == IPPROTO_ICMP  || protocol == IPPROTO_ICMPV6)
+				{			
+					info("%s: ICMP Packet %s %s %s", selfDesc.c_str(), srcIpStr.c_str(), dstIpStr.c_str(), direction_str.c_str());
+					this->ProcessICMPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, icmp_header, icmp6_header, srcIp, dstIp);
+				}
+				else if (protocol == IPPROTO_UDP)
+				{
+					UINT16 srcPort = ntohs(udp_header->SrcPort);
+					UINT16 dstPort = ntohs(udp_header->DstPort);
+					info("%s: UDP Packet %s:%hu %s:%hu %s", selfDesc.c_str(), srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());
+					this->ProcessUDPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, udp_header, srcIp, dstIp);
+				}
+			}
+		}
+		else
 		{
 			warning("%s: failed to parse packet (%d)", selfDesc.c_str(), GetLastError());
-			continue;
 		}
-
-		if (ip_header != NULL)
-		{
-			in_addr temp_addr;
-			temp_addr.S_un.S_addr = ip_header->SrcAddr;
-			srcIp = IpAddr(temp_addr);
-			temp_addr.S_un.S_addr = ip_header->DstAddr;
-			dstIp = IpAddr(temp_addr);
-		}
-		else if (ip6_header != NULL)
-		{
-			in6_addr temp_addr;
-			memcpy(&temp_addr.u.Byte[0], ip6_header->SrcAddr, sizeof(in6_addr));
-			srcIp = IpAddr(temp_addr);
-			memcpy(&temp_addr.u.Byte[0], ip6_header->DstAddr, sizeof(in6_addr));
-			dstIp = IpAddr(temp_addr);
-		}
-
-		std::string srcIpStr = srcIp.to_string();
-		std::string dstIpStr = dstIp.to_string();
-
-		UINT16 srcPort = ntohs(tcp_header->SrcPort);
-		UINT16 dstPort = ntohs(tcp_header->DstPort);
-		std::string direction_str = addr.Outbound == 1 ? "OUT" : "IN";
-		info("%s: Packet %s:%hu %s:%hu %s", selfDesc.c_str(), srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());
-
-		//packet logic
-		this->ProcessTCPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, protocol, tcp_header, srcIp, dstIp);
 
 		if (!WinDivertHelperCalcChecksums(&packet[0], recv_packet_len, &addr, 0))
 		{
@@ -141,7 +167,7 @@ void BaseProxy::DivertWorker()
 			continue;
 		}
 	}
-end:
+END:
 	info("%s: DivertWorker exiting", selfDesc.c_str());
 	return;
 }

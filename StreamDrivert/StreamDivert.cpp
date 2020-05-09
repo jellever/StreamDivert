@@ -12,7 +12,7 @@
 #include <vector>
 #include <future>
 #include "StreamDivert.h"
-#include "InboundDivertProxy.h"
+#include "InboundTCPDivertProxy.h"
 #include "OutboundDivertProxy.h"
 #include "utils.h"
 #include "config.h"
@@ -36,9 +36,9 @@ int __cdecl main(int argc, char **argv)
 	RelayConfig cfg = LoadConfig(argv[1]);
 	std::vector<BaseProxy*> proxies;
 
-	for (auto cfg_proxy : cfg.inboundProxies)
+	for (auto cfg_proxy : cfg.inboundTCPProxies)
 	{
-		InboundDivertProxy* proxy = new InboundDivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
+		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
 		proxy->Start();
 		proxies.push_back(proxy);
 	}

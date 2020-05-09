@@ -50,3 +50,9 @@ void joinStr(const std::vector<std::string>& v, std::string& c, std::string& s)
 			s += c;
 	}
 }
+
+void joinStr(const std::set<std::string>& v, std::string& c, std::string& s)
+{
+	std::vector<std::string> output(v.begin(), v.end());
+	return joinStr(output, c, s);
+}
