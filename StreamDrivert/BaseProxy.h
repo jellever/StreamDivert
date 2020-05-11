@@ -6,6 +6,22 @@
 #include"ipaddr.h"
 
 static IpAddr anyIpAddr = IpAddr("0.0.0.0");
+static void cleanup(HANDLE ioport, OVERLAPPED *ignore);
+
+struct EndpointKey
+{
+	in6_addr addr;
+	UINT16 port;
+
+	bool operator<(const EndpointKey& rhs) const { return memcmp(this, &rhs, sizeof(EndpointKey)) < 0; }
+	bool operator==(const EndpointKey& rhs) const { return memcmp(this, &rhs, sizeof(EndpointKey)) == 0; }
+};
+
+struct Endpoint
+{
+	IpAddr addr;
+	UINT16 port;
+};
 
 class BaseProxy
 {
@@ -20,6 +36,7 @@ protected:
 	std::string selfDescStr;
 	std::recursive_mutex resourceLock;
 
+	std::string getIpAddrIpStr(IpAddr& addr);
 	virtual std::string getStringDesc();
 	virtual std::string generateDivertFilterString();
 	virtual void DivertWorker();

@@ -54,6 +54,12 @@
     <ClInclude Include="InboundTCPDivertProxy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="InboundUDPDivertProxy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="InboundDivertProxy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -78,6 +84,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="InboundTCPDivertProxy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="InboundUDPDivertProxy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

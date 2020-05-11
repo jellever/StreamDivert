@@ -156,7 +156,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="config.h" />
+    <ClInclude Include="InboundDivertProxy.h" />
     <ClInclude Include="InboundTCPDivertProxy.h" />
+    <ClInclude Include="InboundUDPDivertProxy.h" />
     <ClInclude Include="ipaddr.h" />
     <ClInclude Include="BaseProxy.h" />
     <ClInclude Include="OutboundDivertProxy.h" />
@@ -170,6 +172,7 @@
   <ItemGroup>
     <ClCompile Include="config.cpp" />
     <ClCompile Include="InboundTCPDivertProxy.cpp" />
+    <ClCompile Include="InboundUDPDivertProxy.cpp" />
     <ClCompile Include="ipaddr.cpp" />
     <ClCompile Include="BaseProxy.cpp" />
     <ClCompile Include="OutboundDivertProxy.cpp" />

@@ -9,11 +9,20 @@ void IpAddr::initIpv4(const in_addr & addr)
 {
 	memcpy(&this->m_addr.s6_addr[0], ipv4_mapped_prefix, sizeof(ipv4_mapped_prefix));
 	memcpy(&this->m_addr.s6_addr[12], &addr.s_addr, sizeof(addr));
+	this->init();
 }
 
 void IpAddr::initIpv6(const in6_addr & addr)
 {
 	this->m_addr = addr;
+	this->init();
+}
+
+void IpAddr::init()
+{
+#if _DEBUG
+	this->addrStr = this->to_string();
+#endif
 }
 
 IpAddr::IpAddr()

@@ -7,25 +7,8 @@
 #include "windivert.h"
 #include "BaseProxy.h"
 #include "config.h"
-
-static void cleanup(HANDLE ioport, OVERLAPPED *ignore);
-
-
-struct ProxyConnectionWorkerData
-{
-	SOCKET clientSock;
-	sockaddr_in6 clientAddr;
-};
-
-struct ProxyTunnelWorkerData
-{
-	SOCKET sockA;
-	IpAddr sockAAddr;
-	UINT16 sockAPort;
-	SOCKET sockB;
-	IpAddr sockBAddr;
-	UINT16 sockBPort;
-};
+#include"ipaddr.h"
+#include "InboundDivertProxy.h"
 
 
 class InboundTCPDivertProxy : public BaseProxy
@@ -38,7 +21,6 @@ protected:
 	UINT16 localProxyPort;
 	std::vector<InboundRelayEntry> proxyRecords;
 
-	std::string getFiendlyProxyRecordsStr();
 	std::string getStringDesc();
 	void ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr);
 	void ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr);
@@ -53,5 +35,4 @@ public:
 	~InboundTCPDivertProxy();
 	bool Start();
 	bool Stop();
-
-	};
+};

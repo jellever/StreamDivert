@@ -16,10 +16,6 @@ InboundTCPDivertProxy::InboundTCPDivertProxy(const UINT16 localPort, const std::
 
 InboundTCPDivertProxy::~InboundTCPDivertProxy()
 {
-	if (this->running)
-	{
-		this->Stop();
-	}
 }
 
 bool InboundTCPDivertProxy::Start()
@@ -94,20 +90,9 @@ failure:
 }
 
 
-std::string InboundTCPDivertProxy::getFiendlyProxyRecordsStr()
-{
-	std::string result;
-	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
-	{
-		std::string srcip = record->srcAddr.to_string();
-		result += srcip + ":" + std::to_string(this->localPort) + " -> " + srcip + ":" + std::to_string(this->localProxyPort) + " -> " + record->forwardAddr.to_string() + ":" + std::to_string(record->forwardPort) + "\n";
-	}
-	return result;
-}
-
 std::string InboundTCPDivertProxy::getStringDesc()
 {
-	std::string result = std::string("InboundDivertProxy(" + std::to_string(this->localPort) + ":");
+	std::string result = std::string("InboundTCPDivertProxy(" + std::to_string(this->localPort) + ":");
 	if (this->localProxyPort == 0)
 	{
 		result += "?";
@@ -124,20 +109,7 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 {
 	if (true)
 	{
-		if (addr->Outbound == 1)
-		{
-			for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
-			{
-				if ((srcAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
-					tcp_hdr->SrcPort == htons(this->localProxyPort))
-				{
-					std::string dstAddrStr = dstAddr.to_string();
-					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localPort);
-					tcp_hdr->SrcPort = htons(this->localPort);
-				}
-			}
-		}
-		else
+		if (!addr->Outbound)
 		{
 			for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 			{
@@ -148,12 +120,23 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
 					tcp_hdr->DstPort = htons(this->localProxyPort);
 				}
+			}			
+		}
+		else
+		{
+			for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
+			{
+				if ((dstAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
+					tcp_hdr->SrcPort == htons(this->localProxyPort))
+				{
+					std::string srcAddrStr = srcAddr.to_string();
+					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
+					tcp_hdr->SrcPort = htons(this->localPort);
+				}
 			}
 		}
 	}
 }
-
-
 
 void InboundTCPDivertProxy::ProxyWorker()
 {	
@@ -332,16 +315,10 @@ std::string InboundTCPDivertProxy::generateDivertFilterString()
 	{
 		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 		{
-			if (record->srcAddr.get_family() == IPFamily::IPv4)
-			{
-				std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and ip.SrcAddr == " + record->srcAddr.to_string() + ")";
-				orExpressions.push_back(recordFilterStr);
-			}
-			else if (record->srcAddr.get_family() == IPFamily::IPv6)
-			{
-				std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and ipv6.SrcAddr == " + record->srcAddr.to_string() + ")";
-				orExpressions.push_back(recordFilterStr);
-			}
+			std::string srcAddrIpStr = this->getIpAddrIpStr(record->srcAddr);
+
+			std::string recordFilterStr = "(tcp.DstPort == " + std::to_string(this->localPort) + " and " + srcAddrIpStr + ".SrcAddr == " + record->srcAddr.to_string() + ")";
+			orExpressions.push_back(recordFilterStr);
 		}
 	}
 
@@ -375,7 +352,7 @@ bool InboundTCPDivertProxy::Stop()
 			shutdown(this->proxySock, SD_BOTH);
 			closesocket(this->proxySock);
 			this->proxySock = NULL;
-		}		
+		}
 	}//lock scope
 
 	if (this->proxyThread.joinable())

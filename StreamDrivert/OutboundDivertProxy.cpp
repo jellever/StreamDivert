@@ -35,36 +35,26 @@ std::string OutboundDivertProxy::generateDivertFilterString()
 		{
 			protocols.insert(record->protocol);
 		}
-		if (record->dstAddr == anyIpAddr)
+		if (record->protocol == "tcp" || record->protocol == "udp")
 		{
-			recordFilterStr = "(tcp.DstPort == " + std::to_string(record->dstPort) + ")";
-			orExpressions.push_back(recordFilterStr);
-			recordFilterStr = "(tcp.SrcPort == " + std::to_string(record->dstPort) + ")";
-			orExpressions.push_back(recordFilterStr);			
-		}
-		else
-		{
-			if (record->dstAddr.get_family() == IPFamily::IPv4)
+			if (record->dstAddr == anyIpAddr)
 			{
-				recordFilterStr = "(ip.DstAddr == " + record->dstAddr.to_string() + " and tcp.DstPort == " + std::to_string(record->dstPort) + ")";
+				recordFilterStr = "(" + record->protocol + ".DstPort == " + std::to_string(record->dstPort) + ")";
+				orExpressions.push_back(recordFilterStr);
+				recordFilterStr = "(" + record->protocol + ".SrcPort == " + std::to_string(record->dstPort) + ")";
 				orExpressions.push_back(recordFilterStr);
 			}
-			else if (record->dstAddr.get_family() == IPFamily::IPv6)
+			else
 			{
-				recordFilterStr = "(ipv6.DstAddr == " + record->dstAddr.to_string() + " and tcp.DstPort == " + std::to_string(record->dstPort) + ")";
-				orExpressions.push_back(recordFilterStr);
-			}
+				std::string dstAddrIpStr = this->getIpAddrIpStr(record->dstAddr);
+				std::string forwardAddrIpStr = this->getIpAddrIpStr(record->forwardAddr);
 
-			if (record->forwardAddr.get_family() == IPFamily::IPv4)
-			{
-				recordFilterStr = "(ipv6.SrcAddr == " + record->forwardAddr.to_string() + " and tcp.SrcPort == " + std::to_string(record->forwardPort) + ")";
+				recordFilterStr = "(" + dstAddrIpStr + ".DstAddr == " + record->dstAddr.to_string() + " and " + record->protocol + ".DstPort == " + std::to_string(record->dstPort) + ")";
+				orExpressions.push_back(recordFilterStr);
+
+				recordFilterStr = "(" + forwardAddrIpStr + ".SrcAddr == " + record->forwardAddr.to_string() + " and " + record->protocol + ".SrcPort == " + std::to_string(record->forwardPort) + ")";
 				orExpressions.push_back(recordFilterStr);
 			}
-			else if (record->forwardAddr.get_family() == IPFamily::IPv6)
-			{
-				recordFilterStr = "(ipv6.SrcAddr == " + record->forwardAddr.to_string() + " and tcp.SrcPort == " + std::to_string(record->forwardPort) + ")";
-				orExpressions.push_back(recordFilterStr);
-			}			
 		}
 	}
 	result = "(";
@@ -81,12 +71,11 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 {
 	if (true)
 	{
-		if (addr->Outbound == 1)
+		if (addr->Outbound)
 		{
 			for (auto record = this->relayEntries.begin(); record != this->relayEntries.end(); ++record)
 			{
-				if ((dstAddr == record->dstAddr || record->dstAddr == anyIpAddr) &&
-					tcp_hdr->DstPort == htons(record->dstPort))
+				if (record->protocol == "tcp" && (dstAddr == record->dstAddr || record->dstAddr == anyIpAddr) && tcp_hdr->DstPort == htons(record->dstPort))
 				{							
 					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), record->forwardAddr.to_string().c_str(), record->forwardPort);
 					if (record->dstAddr == anyIpAddr)
@@ -94,7 +83,7 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 						EndpointKey key;
 						key.addr = srcAddr.get_addr();
 						key.port = tcp_hdr->SrcPort;
-						this->incomingMap[key] = { dstAddr, tcp_hdr->DstPort };						
+						this->incomingTCPMap[key] = { dstAddr, tcp_hdr->DstPort };
 					}
 					if (ip_hdr)
 					{
@@ -112,28 +101,27 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 		{
 			for (auto record = this->relayEntries.begin(); record != this->relayEntries.end(); ++record)
 			{
-				if ((srcAddr == record->forwardAddr || record->dstAddr == anyIpAddr) &&
-					tcp_hdr->SrcPort == htons(record->forwardPort))
+				if (record->protocol == "tcp" && (srcAddr == record->forwardAddr || record->dstAddr == anyIpAddr) && tcp_hdr->SrcPort == htons(record->forwardPort))
 				{					
 					if (record->dstAddr == anyIpAddr)
 					{
 						EndpointKey key;
 						key.addr = dstAddr.get_addr();
 						key.port = tcp_hdr->DstPort;
-						std::map<EndpointKey, Endpoint>::iterator it = this->incomingMap.find(key);
-						if (it != this->incomingMap.end())
+						std::map<EndpointKey, Endpoint>::iterator it = this->incomingTCPMap.find(key);
+						if (it != this->incomingTCPMap.end())
 						{
-							IpAddr& addr = it->second.addr;							
+							IpAddr& lookupAddr = it->second.addr;							
 							if (ip_hdr)
 							{
-								ip_hdr->SrcAddr = addr.get_ipv4_addr().S_un.S_addr;
+								ip_hdr->SrcAddr = lookupAddr.get_ipv4_addr().S_un.S_addr;
 							}
 							else if (ip6_hdr)
 							{
-								*(in6_addr*)&ip6_hdr->SrcAddr[0] = addr.get_addr();
+								*(in6_addr*)&ip6_hdr->SrcAddr[0] = lookupAddr.get_addr();
 							}
 							tcp_hdr->SrcPort = it->second.port;
-							info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), addr.to_string().c_str(), ntohs(it->second.port));
+							info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), lookupAddr.to_string().c_str(), ntohs(it->second.port));
 						}						
 					}
 					else
@@ -155,6 +143,85 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 	}
 }
 
+
+void OutboundDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+{
+}
+
+void OutboundDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
+{
+	if (addr->Outbound)
+	{
+		for (auto record = this->relayEntries.begin(); record != this->relayEntries.end(); ++record)
+		{
+			if (record->protocol == "udp" && (dstAddr == record->dstAddr || record->dstAddr == anyIpAddr) && udp_header->DstPort == htons(record->dstPort))
+			{
+				info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), record->forwardAddr.to_string().c_str(), record->forwardPort);
+				if (record->dstAddr == anyIpAddr)
+				{
+					EndpointKey key;
+					key.addr = srcAddr.get_addr();
+					key.port = udp_header->SrcPort;
+					this->incomingUDPMap[key] = { dstAddr, udp_header->DstPort };
+				}
+				if (ip_hdr)
+				{
+					ip_hdr->DstAddr = record->forwardAddr.get_ipv4_addr().S_un.S_addr;
+				}
+				else if (ip6_hdr)
+				{
+					*(in6_addr*)&ip6_hdr->DstAddr[0] = record->forwardAddr.get_addr();
+				}
+				udp_header->DstPort = htons(record->forwardPort);
+			}
+		}
+	}
+	else
+	{
+		for (auto record = this->relayEntries.begin(); record != this->relayEntries.end(); ++record)
+		{
+			if (record->protocol == "udp" && (srcAddr == record->forwardAddr || record->dstAddr == anyIpAddr) && udp_header->SrcPort == htons(record->forwardPort))
+			{
+				if (record->dstAddr == anyIpAddr)
+				{
+					EndpointKey key;
+					key.addr = dstAddr.get_addr();
+					key.port = udp_header->DstPort;
+					std::map<EndpointKey, Endpoint>::iterator it = this->incomingUDPMap.find(key);
+					if (it != this->incomingUDPMap.end())
+					{
+						IpAddr& addr = it->second.addr;
+						if (ip_hdr)
+						{
+							ip_hdr->SrcAddr = addr.get_ipv4_addr().S_un.S_addr;
+						}
+						else if (ip6_hdr)
+						{
+							*(in6_addr*)&ip6_hdr->SrcAddr[0] = addr.get_addr();
+						}
+						udp_header->SrcPort = it->second.port;
+						info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), addr.to_string().c_str(), ntohs(it->second.port));
+					}
+				}
+				else
+				{
+					if (ip_hdr)
+					{
+						ip_hdr->SrcAddr = record->dstAddr.get_ipv4_addr().S_un.S_addr;
+					}
+					else if (ip6_hdr)
+					{
+						*(in6_addr*)&ip6_hdr->SrcAddr[0] = record->dstAddr.get_addr();
+					}
+					udp_header->SrcPort = htons(record->dstPort);
+					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), record->dstAddr.to_string().c_str(), record->dstPort);
+				}
+			}
+		}
+	}
+}
+
+
 OutboundDivertProxy::OutboundDivertProxy(std::vector<OutboundRelayEntry>& relayEntries)
 {
 	this->relayEntries = relayEntries;
@@ -168,14 +235,7 @@ OutboundDivertProxy::~OutboundDivertProxy()
 
 bool OutboundDivertProxy::Stop()
 {
-	this->incomingMap.clear();
+	this->incomingTCPMap.clear();
+	this->incomingUDPMap.clear();
 	return BaseProxy::Stop();
-}
-
-void OutboundDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
-{
-}
-
-void OutboundDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
-{
 }

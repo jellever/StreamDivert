@@ -13,6 +13,7 @@
 #include <future>
 #include "StreamDivert.h"
 #include "InboundTCPDivertProxy.h"
+#include "InboundUDPDivertProxy.h"
 #include "OutboundDivertProxy.h"
 #include "utils.h"
 #include "config.h"
@@ -39,6 +40,12 @@ int __cdecl main(int argc, char **argv)
 	for (auto cfg_proxy : cfg.inboundTCPProxies)
 	{
 		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
+		proxy->Start();
+		proxies.push_back(proxy);
+	}
+	for (auto cfg_proxy : cfg.inboundUDPProxies)
+	{
+		InboundUDPDivertProxy* proxy = new InboundUDPDivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
 		proxy->Start();
 		proxies.push_back(proxy);
 	}

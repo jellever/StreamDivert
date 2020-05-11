@@ -24,6 +24,19 @@ static void cleanup(HANDLE ioport, OVERLAPPED *ignore)
 }
 
 
+std::string BaseProxy::getIpAddrIpStr(IpAddr & addr)
+{
+	if (addr.get_family() == IPFamily::IPv4)
+	{
+		return "ip";
+	}
+	else if (addr.get_family() == IPFamily::IPv6)
+	{
+		return "ipv6";
+	}
+	return "Unknown";
+}
+
 std::string BaseProxy::getStringDesc()
 {	
 	std::string result = std::string("BaseProxy()");

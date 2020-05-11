@@ -17,8 +17,12 @@ class IpAddr
 {
 protected:
 	in6_addr m_addr;
+#if _DEBUG
+	std::string addrStr;
+#endif
 	void initIpv4(const in_addr& addr);
 	void initIpv6(const in6_addr& addr);
+	void init();
 
 public:
 	IpAddr();
