@@ -95,6 +95,7 @@ void InboundUDPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & pack
 					}
 					udp_header->DstPort = htons(record->forwardPort);
 					addr->Outbound = 1;
+					break;
 				}
 				// Inbound packets from a forward address
 				else if ((srcAddr == record->forwardAddr || record->srcAddr == anyIpAddr) &&
@@ -121,6 +122,7 @@ void InboundUDPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & pack
 						}
 						udp_header->SrcPort = it->second.port;
 						addr->Outbound = 1;
+						break;
 					}
 				}
 			}
@@ -131,7 +133,7 @@ void InboundUDPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & pack
 std::string InboundUDPDivertProxy::generateDivertFilterString()
 {
 	std::string result = "udp";
-	std::vector<std::string> orExpressions;	
+	std::set<std::string> orExpressions;	
 
 	//check for wildcard address
 	bool containsWildcard = false;
@@ -142,30 +144,27 @@ std::string InboundUDPDivertProxy::generateDivertFilterString()
 			std::string forwardAddrIpStr = this->getIpAddrIpStr(record->forwardAddr);
 			std::string recordFilterStr;
 			
-			recordFilterStr = "(udp.DstPort == " + std::to_string(record->) + " and " + forwardAddrIpStr + ".SrcAddr == " + record->forwardAddr.to_string() + ")";
-			orExpressions.push_back(recordFilterStr);
-
-			std::string recordFilterStr = "(udp.SrcPort == " + std::to_string(record->forwardPort) + " and " + forwardAddrIpStr + ".SrcAddr == " + record->forwardAddr.to_string() + ")";
-			orExpressions.push_back(recordFilterStr);
+			recordFilterStr = "(udp.DstPort == " + std::to_string(this->localPort) + ")";
+			orExpressions.insert(recordFilterStr);						
 			containsWildcard = true;			
 		}
 	}
-
-	if (!containsWildcard)
+	
+	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 	{
-		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
+		std::string srcAddrIpStr = this->getIpAddrIpStr(record->srcAddr);
+		std::string forwardAddrIpStr = this->getIpAddrIpStr(record->forwardAddr);			
+		std::string recordFilterStr;
+
+		if (!containsWildcard)
 		{
-			std::string srcAddrIpStr = this->getIpAddrIpStr(record->srcAddr);
-			std::string forwardAddrIpStr = this->getIpAddrIpStr(record->forwardAddr);			
-			std::string recordFilterStr;
-
 			recordFilterStr = "(udp.DstPort == " + std::to_string(this->localPort) + " and " + srcAddrIpStr + ".SrcAddr == " + record->srcAddr.to_string() + ")";
-			orExpressions.push_back(recordFilterStr);
-
-			recordFilterStr = "(udp.SrcPort == " + std::to_string(record->forwardPort) + " and " + forwardAddrIpStr + ".SrcAddr == " + record->forwardAddr.to_string() + ")";
-			orExpressions.push_back(recordFilterStr);
+			orExpressions.insert(recordFilterStr);
 		}
+		recordFilterStr = "(udp.SrcPort == " + std::to_string(record->forwardPort) + " and " + forwardAddrIpStr + ".SrcAddr == " + record->forwardAddr.to_string() + ")";
+		orExpressions.insert(recordFilterStr);
 	}
+	
 
 	result += " and (";
 	joinStr(orExpressions, std::string(" or "), result);

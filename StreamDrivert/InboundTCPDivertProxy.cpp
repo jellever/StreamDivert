@@ -119,6 +119,7 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 					std::string dstAddrStr = dstAddr.to_string();
 					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
 					tcp_hdr->DstPort = htons(this->localProxyPort);
+					break;
 				}
 			}			
 		}
@@ -132,6 +133,7 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 					std::string srcAddrStr = srcAddr.to_string();
 					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
 					tcp_hdr->SrcPort = htons(this->localPort);
+					break;
 				}
 			}
 		}

@@ -94,6 +94,7 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 						*(in6_addr*)&ip6_hdr->DstAddr[0] = record->forwardAddr.get_addr();
 					}
 					tcp_hdr->DstPort = htons(record->forwardPort);
+					break;
 				}
 			}
 		}
@@ -122,6 +123,7 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 							}
 							tcp_hdr->SrcPort = it->second.port;
 							info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), lookupAddr.to_string().c_str(), ntohs(it->second.port));
+							break;
 						}						
 					}
 					else
@@ -136,6 +138,7 @@ void OutboundDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet
 						}
 						tcp_hdr->SrcPort = htons(record->dstPort);
 						info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), record->dstAddr.to_string().c_str(), record->dstPort);
+						break;
 					}					
 				}
 			}
@@ -173,6 +176,7 @@ void OutboundDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet
 					*(in6_addr*)&ip6_hdr->DstAddr[0] = record->forwardAddr.get_addr();
 				}
 				udp_header->DstPort = htons(record->forwardPort);
+				break;
 			}
 		}
 	}
@@ -201,6 +205,7 @@ void OutboundDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet
 						}
 						udp_header->SrcPort = it->second.port;
 						info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), addr.to_string().c_str(), ntohs(it->second.port));
+						break;
 					}
 				}
 				else
@@ -215,6 +220,7 @@ void OutboundDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet
 					}
 					udp_header->SrcPort = htons(record->dstPort);
 					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), record->dstAddr.to_string().c_str(), record->dstPort);
+					break;
 				}
 			}
 		}
