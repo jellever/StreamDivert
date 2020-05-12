@@ -14,8 +14,6 @@
 class InboundUDPDivertProxy : public BaseProxy
 {
 protected:
-
-	UINT16 localPort;
 	std::vector<InboundRelayEntry> proxyRecords;
 	std::map<EndpointKey, Endpoint> connectionMap;
 
@@ -25,8 +23,6 @@ protected:
 	void ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr);
 	std::string generateDivertFilterString();
 public:
-	InboundUDPDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords);
+	InboundUDPDivertProxy(const std::vector<InboundRelayEntry>& proxyRecords);
 	~InboundUDPDivertProxy();
-	bool Start();
-	bool Stop();
 };

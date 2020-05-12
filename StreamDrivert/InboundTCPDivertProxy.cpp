@@ -107,34 +107,31 @@ std::string InboundTCPDivertProxy::getStringDesc()
 
 void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr)
 {
-	if (true)
+	if (!addr->Outbound)
 	{
-		if (!addr->Outbound)
+		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 		{
-			for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
+			if ((srcAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
+				tcp_hdr->DstPort == htons(this->localPort))
 			{
-				if ((srcAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
-					tcp_hdr->DstPort == htons(this->localPort))
-				{
-					std::string dstAddrStr = dstAddr.to_string();
-					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
-					tcp_hdr->DstPort = htons(this->localProxyPort);
-					break;
-				}
-			}			
-		}
-		else
+				std::string dstAddrStr = dstAddr.to_string();
+				info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
+				tcp_hdr->DstPort = htons(this->localProxyPort);
+				break;
+			}
+		}			
+	}
+	else
+	{
+		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 		{
-			for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
+			if ((dstAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
+				tcp_hdr->SrcPort == htons(this->localProxyPort))
 			{
-				if ((dstAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
-					tcp_hdr->SrcPort == htons(this->localProxyPort))
-				{
-					std::string srcAddrStr = srcAddr.to_string();
-					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
-					tcp_hdr->SrcPort = htons(this->localPort);
-					break;
-				}
+				std::string srcAddrStr = srcAddr.to_string();
+				info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
+				tcp_hdr->SrcPort = htons(this->localPort);
+				break;
 			}
 		}
 	}

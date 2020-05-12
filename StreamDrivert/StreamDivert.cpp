@@ -37,22 +37,41 @@ int __cdecl main(int argc, char **argv)
 	RelayConfig cfg = LoadConfig(argv[1]);
 	std::vector<BaseProxy*> proxies;
 
-	for (auto cfg_proxy : cfg.inboundTCPProxies)
+	std::map<UINT16, std::vector<InboundRelayEntry>> mappedInboundTCPRelayEntries;
+	std::vector<InboundRelayEntry> inboundUDPRelayEntries;
+	std::vector<InboundRelayEntry> inboundICMPRelayEntries;
+	for (auto entry : cfg.inboundRelayEntries)
 	{
-		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
-		proxy->Start();
-		proxies.push_back(proxy);
-	}
-	for (auto cfg_proxy : cfg.inboundUDPProxies)
-	{
-		InboundUDPDivertProxy* proxy = new InboundUDPDivertProxy(cfg_proxy.first, cfg_proxy.second.relayEntries);
-		proxy->Start();
-		proxies.push_back(proxy);
+		if (entry.protocol == "tcp")
+		{
+			std::vector<InboundRelayEntry>& entries = mappedInboundTCPRelayEntries[entry.localPort];
+			entries.push_back(entry);
+		}
+		else if (entry.protocol == "udp")
+		{
+			inboundUDPRelayEntries.push_back(entry);
+		}
+		else if (entry.protocol == "icmp")
+		{
+			inboundICMPRelayEntries.push_back(entry);
+		}
 	}
 
-	OutboundDivertProxy* proxy = new OutboundDivertProxy(cfg.outboundProxy.relayEntries);
-	proxy->Start();	
-	proxies.push_back(proxy);
+
+	for (auto mapping : mappedInboundTCPRelayEntries)
+	{
+		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(mapping.first, mapping.second);
+		proxy->Start();
+		proxies.push_back(proxy);
+	}
+	
+	InboundUDPDivertProxy* inboundUDPProxy = new InboundUDPDivertProxy(inboundUDPRelayEntries);
+	inboundUDPProxy->Start();
+	proxies.push_back(inboundUDPProxy);
+
+	OutboundDivertProxy* outboundProxy = new OutboundDivertProxy(cfg.outboundRelayEntries);
+	outboundProxy->Start();
+	proxies.push_back(outboundProxy);
 
 	//Wait indefinitely
 	std::promise<void> p;

@@ -39,6 +39,10 @@ protected:
 	std::string getIpAddrIpStr(IpAddr& addr);
 	virtual std::string getStringDesc();
 	virtual std::string generateDivertFilterString();
+	void SwapIPHeaderSrcToDst(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr);
+	void SwapIPHeaderDstToSrc(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr);
+	void OverrideIPHeaderSrc(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, IpAddr& addr);
+	void OverrideIPHeaderDst(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, IpAddr& addr);
 	virtual void DivertWorker();
 	virtual void ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr) = 0;
 	virtual void ProcessICMPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr& srcAddr, IpAddr& dstAddr) = 0;

@@ -11,6 +11,7 @@ protected:
 	std::vector<OutboundRelayEntry> relayEntries;
 	std::map<EndpointKey, Endpoint> incomingTCPMap;
 	std::map<EndpointKey, Endpoint> incomingUDPMap;
+	std::map<EndpointKey, Endpoint> incomingICMPMap;
 
 	std::string getFiendlyProxyRecordsStr();
 	std::string getStringDesc();

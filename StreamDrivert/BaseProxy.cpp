@@ -48,6 +48,54 @@ std::string BaseProxy::generateDivertFilterString()
 	return std::string("tcp");
 }
 
+void BaseProxy::SwapIPHeaderSrcToDst(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr)
+{
+	if (ip_hdr)
+	{
+		ip_hdr->DstAddr = ip_hdr->SrcAddr;
+	}
+	else if (ip6_hdr)
+	{
+		*(in6_addr*)&ip6_hdr->DstAddr[0] = *(in6_addr*)&ip6_hdr->SrcAddr[0];
+	}
+}
+
+void BaseProxy::SwapIPHeaderDstToSrc(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr)
+{
+	if (ip_hdr)
+	{
+		ip_hdr->SrcAddr = ip_hdr->DstAddr;		
+	}
+	else if (ip6_hdr)
+	{
+		*(in6_addr*)&ip6_hdr->SrcAddr[0] = *(in6_addr*)&ip6_hdr->DstAddr[0];		
+	}
+}
+
+void BaseProxy::OverrideIPHeaderSrc(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, IpAddr& addr)
+{
+	if (ip_hdr)
+	{
+		ip_hdr->SrcAddr = addr.get_ipv4_addr().S_un.S_addr;
+	}
+	else if (ip6_hdr)
+	{
+		*(in6_addr*)&ip6_hdr->SrcAddr[0] = addr.get_addr();
+	}
+}
+
+void BaseProxy::OverrideIPHeaderDst(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, IpAddr& addr)
+{
+	if (ip_hdr)
+	{
+		ip_hdr->DstAddr = addr.get_ipv4_addr().S_un.S_addr;
+	}
+	else if (ip6_hdr)
+	{
+		*(in6_addr*)&ip6_hdr->DstAddr[0] = addr.get_addr();
+	}
+}
+
 void BaseProxy::DivertWorker()
 {
 	OVERLAPPED overlapped;
