@@ -4,18 +4,6 @@
 #include <set>
 
 
-std::string OutboundDivertProxy::getFiendlyProxyRecordsStr()
-{
-	std::string result;
-	for (auto record = this->relayEntries.begin(); record != this->relayEntries.end(); ++record)
-	{
-		std::string dstAddr = record->dstAddr.to_string();
-		std::string forwardAddr = record->forwardAddr.to_string();
-		result += dstAddr + ":" + std::to_string(record->dstPort) + " -> " + forwardAddr + ":" + std::to_string(record->forwardPort) + "\n";
-	}
-	return result;
-}
-
 std::string OutboundDivertProxy::getStringDesc()
 {
 	return std::string("OutboundDivertProxy()");
@@ -30,9 +18,12 @@ std::string OutboundDivertProxy::generateDivertFilterString()
 
 	for (auto record = this->relayEntries.begin(); record != this->relayEntries.end(); ++record)
 	{
-		//TODO: Does this also capture icmpv6??
 		if (record->protocol == "tcp" || record->protocol == "icmp" || record->protocol == "udp")
 		{
+			if (record->protocol == "icmp")
+			{
+				protocols.insert("icmpv6");
+			}			
 			protocols.insert(record->protocol);
 		}
 		if (record->protocol == "tcp" || record->protocol == "udp")
@@ -145,7 +136,7 @@ void OutboundDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packe
 					key.port = 0;
 					this->incomingICMPMap[key] = { dstAddr, 0};
 				}
-				this->OverrideIPHeaderDst(ip_hdr, ip6_hdr, record->forwardAddr);
+				this->OverrideIPHeaderDst(ip_hdr, ip6_hdr, record->forwardAddr);				
 				break;
 			}
 		}
@@ -164,9 +155,9 @@ void OutboundDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packe
 					std::map<EndpointKey, Endpoint>::iterator it = this->incomingICMPMap.find(key);
 					if (it != this->incomingICMPMap.end())
 					{
-						IpAddr& addr = it->second.addr;
-						this->OverrideIPHeaderSrc(ip_hdr, ip6_hdr, addr);
-						info("%s: Modify packet src -> %s", this->selfDescStr.c_str(), addr.to_string().c_str());
+						IpAddr& lookupAddr = it->second.addr;
+						this->OverrideIPHeaderSrc(ip_hdr, ip6_hdr, lookupAddr);						
+						info("%s: Modify packet src -> %s", this->selfDescStr.c_str(), lookupAddr.to_string().c_str());
 						break;
 					}
 				}
@@ -241,7 +232,6 @@ OutboundDivertProxy::OutboundDivertProxy(std::vector<OutboundRelayEntry>& relayE
 	this->relayEntries = relayEntries;
 	this->selfDescStr = this->getStringDesc();
 }
-
 
 OutboundDivertProxy::~OutboundDivertProxy()
 {

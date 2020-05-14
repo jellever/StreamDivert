@@ -14,6 +14,7 @@
 #include "StreamDivert.h"
 #include "InboundTCPDivertProxy.h"
 #include "InboundUDPDivertProxy.h"
+#include "InboundICMPDivertProxy.h"
 #include "OutboundDivertProxy.h"
 #include "utils.h"
 #include "config.h"
@@ -57,7 +58,6 @@ int __cdecl main(int argc, char **argv)
 		}
 	}
 
-
 	for (auto mapping : mappedInboundTCPRelayEntries)
 	{
 		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(mapping.first, mapping.second);
@@ -68,6 +68,10 @@ int __cdecl main(int argc, char **argv)
 	InboundUDPDivertProxy* inboundUDPProxy = new InboundUDPDivertProxy(inboundUDPRelayEntries);
 	inboundUDPProxy->Start();
 	proxies.push_back(inboundUDPProxy);
+
+	InboundICMPDivertProxy* inboundICMPProxy = new InboundICMPDivertProxy(inboundICMPRelayEntries);
+	inboundICMPProxy->Start();
+	proxies.push_back(inboundICMPProxy);
 
 	OutboundDivertProxy* outboundProxy = new OutboundDivertProxy(cfg.outboundRelayEntries);
 	outboundProxy->Start();

@@ -6,6 +6,7 @@
 #include"ipaddr.h"
 
 static IpAddr anyIpAddr = IpAddr("0.0.0.0");
+static IpAddr anyIp6Addr = IpAddr("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff");
 static void cleanup(HANDLE ioport, OVERLAPPED *ignore);
 
 struct EndpointKey
