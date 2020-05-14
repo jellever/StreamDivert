@@ -97,7 +97,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="StreamDrivert.rc">
+    <ResourceCompile Include="StreamDivert.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>
@@ -105,7 +105,7 @@
     <Image Include="small.ico">
       <Filter>Resource Files</Filter>
     </Image>
-    <Image Include="StreamDrivert.ico">
+    <Image Include="StreamDivert.ico">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

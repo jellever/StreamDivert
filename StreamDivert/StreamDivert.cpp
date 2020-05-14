@@ -1,4 +1,4 @@
-// StreamDrivert.cpp : Defines the entry point for the application.
+// StreamDivert.cpp : Defines the entry point for the application.
 //
 
 #include "stdafx.h"

@@ -21,7 +21,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D3214282-B88F-44E5-8B5E-57663AD96AD5}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>StreamDrivert</RootNamespace>
+    <RootNamespace>StreamDivert</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
     <ProjectName>StreamDivert</ProjectName>
   </PropertyGroup>
@@ -214,11 +214,11 @@ xcopy "$(SolutionDir)\WinDivert\$(PlatformTargetAsMSBuildArchitecture)\WinDivert
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="StreamDrivert.rc" />
+    <ResourceCompile Include="StreamDivert.rc" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="small.ico" />
-    <Image Include="StreamDrivert.ico" />
+    <Image Include="StreamDivert.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
