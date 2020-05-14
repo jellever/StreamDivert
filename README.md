@@ -21,14 +21,26 @@ streamdivert.exe [config file]
 
 The config file contains entries for streams you want to have diverted. En example config file:
 ```conf
-//Divert all inbound connections to port 445 (SMB) coming from 10.0.1.50 to 10.0.1.49 port 445
+//Divert all inbound TCP connections to port 445 (SMB) coming from 10.0.1.50 to 10.0.1.49 port 445
 tcp < 445 10.0.1.50 -> 10.0.1.49 445
 
-//Divert all inbound connections to port 445 (SMB) to 10.0.1.48 port 445
+//Divert all inbound TCP connections to port 445 (SMB) coming from fe80::f477:846a:775d:d37 to fe80::20c:29ff:fe6f:88ff port 445
+tcp < 445 fe80::f477:846a:775d:d37 -> fe80::20c:29ff:fe6f:88ff 445
+
+//Divert all inbound TCP connections to port 445 (SMB) to 10.0.1.48 port 445
 tcp < 445 0.0.0.0 -> 10.0.1.48 445
 
-//
-tcp < 445 fe80::f477:846a:775d:d37 -> fe80::20c:29ff:fe6f:88ff 445
+//Divert all inbound UDP connections to to port 53 (DNS) to  10.0.1.49 port 53
+udp < 53 0.0.0.0 -> 10.0.1.49 53
+
+//Divert all inbound ICMP packets coming from 10.0.1.50 to 10.0.1.49
+icmp < 10.0.1.50 -> 10.0.1.49
+
+//Divert all outbound TCP connections to 10.0.1.50, port 80 to 10.0.1.49 port 8080
+tcp > 10.0.1.50 80 -> 10.0.1.49 8080
+
+//Divert all outbound UDP connection to port 53 (DNS) to 10.0.1.49 port 53
+udp > 0.0.0.0 53 -> 10.0.1.49 53
 ```
 
 ## Contributing to Streamdivert
