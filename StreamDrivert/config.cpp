@@ -21,7 +21,7 @@ RelayConfig LoadConfig(std::string path)
 		char forwardAddr[200] = { 0 };
 		UINT16 forwardPort = 0;
 
-		if (sscanf_s(line.c_str(), "%s < %hu %s -> %s %hu", &proto[0], _countof(proto), &localPort, &srcAddr[0], _countof(srcAddr), &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
+		if (sscanf_s(line.c_str(), "%[a-z]s < %hu %s -> %s %hu", &proto[0], _countof(proto), &localPort, &srcAddr[0], _countof(srcAddr), &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
 		{
 			InboundRelayEntry entry;
 			entry.protocol = std::string(proto);
@@ -31,8 +31,8 @@ RelayConfig LoadConfig(std::string path)
 			entry.forwardPort = forwardPort;
 			result.inboundRelayEntries.push_back(entry);			
 		}
-		else if(sscanf_s(line.c_str(), "%s > %s %hu -> %s %hu", &proto[0], _countof(proto), &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
-		{			
+		else if(sscanf_s(line.c_str(), "%[a-z]s > %s %hu -> %s %hu", &proto[0], _countof(proto), &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
+		{
 			OutboundRelayEntry entry;
 			entry.protocol = std::string(proto);
 			entry.dstAddr = IpAddr(dstAddr);

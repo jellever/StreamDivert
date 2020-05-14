@@ -32,12 +32,16 @@ int __cdecl main(int argc, char **argv)
 {
 	if (argc != 2)
 	{
+		error("No config file was specified!");
 		exit(EXIT_FAILURE);
 	}
 	
+	info("Parsing config file...");
 	RelayConfig cfg = LoadConfig(argv[1]);
-	std::vector<BaseProxy*> proxies;
+	info("Parsed %d inbound and %d outbound relay entries.", cfg.inboundRelayEntries.size(), cfg.outboundRelayEntries.size());
 
+	info("Starting packet diverters...");
+	std::vector<BaseProxy*> proxies;
 	std::map<UINT16, std::vector<InboundRelayEntry>> mappedInboundTCPRelayEntries;
 	std::vector<InboundRelayEntry> inboundUDPRelayEntries;
 	std::vector<InboundRelayEntry> inboundICMPRelayEntries;
