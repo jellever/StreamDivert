@@ -1,5 +1,0 @@
-﻿  stdafx.cpp
-  StreamDrivert.cpp
-f:\user\dropbox\projects\desktop\streamdrivert\streamdrivert\streamdrivert.cpp(141): warning C4101: 'thread': unreferenced local variable
-  StreamDrivert.vcxproj -> F:\User\Dropbox\Projects\Desktop\StreamDrivert\Debug\StreamDivert.exe
-  StreamDrivert.vcxproj -> F:\User\Dropbox\Projects\Desktop\StreamDrivert\Debug\StreamDivert.pdb (Full PDB)
