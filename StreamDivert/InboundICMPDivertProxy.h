@@ -25,5 +25,6 @@ protected:
 public:
 	InboundICMPDivertProxy(const std::vector<InboundRelayEntry>& proxyRecords);
 	~InboundICMPDivertProxy();
+	bool Stop();
 };
 

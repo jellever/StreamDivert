@@ -241,5 +241,6 @@ bool OutboundDivertProxy::Stop()
 {
 	this->incomingTCPMap.clear();
 	this->incomingUDPMap.clear();
+	this->incomingICMPMap.clear();
 	return BaseProxy::Stop();
 }

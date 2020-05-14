@@ -15,6 +15,12 @@ InboundICMPDivertProxy::~InboundICMPDivertProxy()
 {
 }
 
+bool InboundICMPDivertProxy::Stop()
+{
+	this->connectionMap.clear();
+	return BaseProxy::Stop();
+}
+
 
 std::string InboundICMPDivertProxy::getStringDesc()
 {

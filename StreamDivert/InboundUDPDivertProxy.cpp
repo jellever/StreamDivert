@@ -15,6 +15,12 @@ InboundUDPDivertProxy::~InboundUDPDivertProxy()
 {
 }
 
+bool InboundUDPDivertProxy::Stop()
+{
+	this->connectionMap.clear();
+	return BaseProxy::Stop();
+}
+
 std::string InboundUDPDivertProxy::getStringDesc()
 {
 	std::string result = std::string("InboundUDPDivertProxy()");
