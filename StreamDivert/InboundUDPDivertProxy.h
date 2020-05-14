@@ -25,4 +25,5 @@ protected:
 public:
 	InboundUDPDivertProxy(const std::vector<InboundRelayEntry>& proxyRecords);
 	~InboundUDPDivertProxy();
+	bool Stop();
 };
