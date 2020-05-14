@@ -57,6 +57,7 @@ icmp > 10.0.1.49 -> 10.0.1.48
 ```
 Those two diverted streams will conflict with eachother, as packets for the first diverted stream will also be picked up by the second packet 'diverter'. Generally you will only run into these issues with UDP and ICMP and using wildcards. 
 
+Also note that diverting an IPv4 to an IPv6 address and vice versa is not supported for UDP and ICMP traffic.
 ## Contributing to Streamdivert
 Features wanted:
 *  IP range support
