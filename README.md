@@ -44,8 +44,8 @@ udp > 0.0.0.0 53 -> 10.0.1.49 53
 ```
 
 ## Some Use Cases
-*  Diverting C&C traffic to a local socket for dynamic malware analysis
-*  Diverting inbound SMB connections of a compromised host to Responder/ ntlmrelayx (usefull in penetration tests)
+*  Diverting C&C traffic to a local socket for dynamic malware analysis.
+*  Diverting inbound SMB connections of a compromised host to Responder/ ntlmrelayx (usefull in penetration tests).
 *  Routing C&C protocols over reserved ports. For example routing a meterpreter bind shell over port 445.
 *  ...
 
