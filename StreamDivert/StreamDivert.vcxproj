@@ -193,6 +193,7 @@ xcopy "$(SolutionDir)\WinDivert\$(PlatformTargetAsMSBuildArchitecture)\WinDivert
     <ClInclude Include="targetver.h" />
     <ClInclude Include="utils.h" />
     <ClInclude Include="windivert.h" />
+    <ClInclude Include="WindowsFirewall.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="config.cpp" />
@@ -212,6 +213,7 @@ xcopy "$(SolutionDir)\WinDivert\$(PlatformTargetAsMSBuildArchitecture)\WinDivert
       <FileType>CppCode</FileType>
     </ClCompile>
     <ClCompile Include="utils.cpp" />
+    <ClCompile Include="WindowsFirewall.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="StreamDivert.rc" />

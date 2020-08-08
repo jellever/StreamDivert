@@ -17,3 +17,5 @@ void message(const char *msg, ...);
 
 void joinStr(const std::vector<std::string>& v, std::string& c, std::string& s);
 void joinStr(const std::set<std::string>& v, std::string& c, std::string& s);
+
+std::string GetApplicationExecutablePath();

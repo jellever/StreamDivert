@@ -30,3 +30,10 @@ void joinStr(const std::set<std::string>& v, std::string& c, std::string& s)
 	std::vector<std::string> output(v.begin(), v.end());
 	return joinStr(output, c, s);
 }
+
+std::string GetApplicationExecutablePath()
+{
+	char buffer[MAX_PATH];
+	DWORD stat = GetModuleFileNameA(NULL, &buffer[0], sizeof(buffer));
+	return std::string(&buffer[0]);
+}

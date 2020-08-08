@@ -18,7 +18,7 @@
 #include "OutboundDivertProxy.h"
 #include "utils.h"
 #include "config.h"
-
+#include "WindowsFirewall.h"
 
 
 // Global Variables:
@@ -30,14 +30,35 @@ HINSTANCE hInst;                                // current instance
 
 int __cdecl main(int argc, char **argv)
 {
-	if (argc != 2)
+	bool modifyFW = false;
+	if (argc < 2)
 	{
 		error("No config file was specified!");
 		exit(EXIT_FAILURE);
 	}
+	if (argc == 3 && std::string(argv[2]) == "-f")
+	{
+		modifyFW = true;
+	}
+	std::string cfgPath = argv[1];
+
+	if (modifyFW)
+	{
+		info("Modifying firewall..");
+		WindowsFirewall fw;
+		if (fw.Initialize())
+		{
+			std::string path = GetApplicationExecutablePath();
+			fw.AddApplication(path, "StreamDivert");
+		}
+		else
+		{
+			error("Failed to initialize FW object");
+		}
+	}
 	
 	info("Parsing config file...");
-	RelayConfig cfg = LoadConfig(argv[1]);
+	RelayConfig cfg = LoadConfig(cfgPath);
 	info("Parsed %d inbound and %d outbound relay entries.", cfg.inboundRelayEntries.size(), cfg.outboundRelayEntries.size());
 
 	info("Starting packet diverters...");

@@ -76,7 +76,7 @@ bool InboundTCPDivertProxy::Start()
 		{
 			error("%s: failed to listen socket (%d)", this->selfDescStr.c_str(), WSAGetLastError());
 			goto failure;
-		}
+		}		
 
 		BaseProxy::Start();
 	}//lock scope

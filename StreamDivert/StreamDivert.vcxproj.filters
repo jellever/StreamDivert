@@ -63,6 +63,9 @@
     <ClInclude Include="InboundICMPDivertProxy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="WindowsFirewall.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -93,6 +96,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="InboundICMPDivertProxy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WindowsFirewall.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
