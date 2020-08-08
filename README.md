@@ -15,7 +15,7 @@ Pre-compiled binaries for StreamDivert can be downloaded [here](url).
 How do you use StreamDivert? Run the the tool:
 
 ```console
-streamdivert.exe [config file]
+streamdivert.exe config_file [-f]
 ```
 
 The config file contains entries for streams you want to have diverted. En example config file:
@@ -41,6 +41,8 @@ tcp > 10.0.1.50 80 -> 10.0.1.49 8080
 //Divert all outbound UDP connection to port 53 (DNS) to 10.0.1.49 port 53
 udp > 0.0.0.0 53 -> 10.0.1.49 53
 ```
+
+The [-f] flag, when present, will modify the Windows Firewall to add an exception for the application to properly redirect incoming traffic to another port.
 
 ## Some Use Cases
 *  Diverting outbound C&C traffic to a local socket for dynamic malware analysis.
