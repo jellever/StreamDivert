@@ -7,12 +7,14 @@
 
 
 InboundTCPDivertProxy::InboundTCPDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords)
+	: socksServer(0)
 {	
 	this->localPort = localPort;
 	this->localProxyPort = 0;
 	this->proxyRecords = proxyRecords;
 	this->proxySock = NULL;
 	this->selfDescStr = this->getStringDesc();
+	this->containsSocksRecords = false;
 }
 
 InboundTCPDivertProxy::~InboundTCPDivertProxy()
@@ -77,7 +79,17 @@ bool InboundTCPDivertProxy::Start()
 		{
 			error("%s: failed to listen socket (%d)", this->selfDescStr.c_str(), WSAGetLastError());
 			goto failure;
-		}		
+		}
+
+		for each (auto record in this->proxyRecords)
+		{
+			if (record.type == InboundRelayEntryType::Socks)
+			{
+				this->socksServer.Start();
+				containsSocksRecords = true;
+				break;
+			}
+		}
 
 		BaseProxy::Start();
 	}//lock scope
@@ -116,23 +128,38 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 				tcp_hdr->DstPort == htons(this->localPort))
 			{
 				std::string dstAddrStr = dstAddr.to_string();
-				info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
-				tcp_hdr->DstPort = htons(this->localProxyPort);
-				break;
+				if (record->type == InboundRelayEntryType::Divert)
+				{
+					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
+					tcp_hdr->DstPort = htons(this->localProxyPort);
+					break;
+				}
+				else if (record->type == InboundRelayEntryType::Socks)
+				{
+					int socksPort = this->socksServer.GetPort();
+					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), socksPort);
+					tcp_hdr->DstPort = htons(socksPort);
+					break;
+				}
 			}
-		}			
+		}
 	}
 	else
 	{
 		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 		{
-			if ((dstAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
-				tcp_hdr->SrcPort == htons(this->localProxyPort))
+			if ((dstAddr == record->srcAddr || record->srcAddr == anyIpAddr))
 			{
-				std::string srcAddrStr = srcAddr.to_string();
-				info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
-				tcp_hdr->SrcPort = htons(this->localPort);
-				break;
+				if (
+					(record->type == InboundRelayEntryType::Divert && tcp_hdr->SrcPort == htons(this->localProxyPort) ) ||
+					(record->type == InboundRelayEntryType::Socks && tcp_hdr->SrcPort == htons(this->socksServer.GetPort()))
+					)
+				{
+					std::string srcAddrStr = srcAddr.to_string();
+					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
+					tcp_hdr->SrcPort = htons(this->localPort);
+					break;
+				}				
 			}
 		}
 	}
@@ -252,6 +279,12 @@ std::string InboundTCPDivertProxy::generateDivertFilterString()
 	std::string proxyFilterStr = "(tcp.SrcPort == " + std::to_string(this->localProxyPort) + ")";
 	orExpressions.push_back(proxyFilterStr);
 
+	if (this->containsSocksRecords)
+	{
+		proxyFilterStr = "(tcp.SrcPort == " + std::to_string(this->socksServer.GetPort()) + ")";
+		orExpressions.push_back(proxyFilterStr);
+	}
+
 	//check for wildcard address
 	bool containsWildcard = false;	
 	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
@@ -262,7 +295,7 @@ std::string InboundTCPDivertProxy::generateDivertFilterString()
 			orExpressions.push_back(recordFilterStr);
 			containsWildcard = true;
 			break;
-		}		
+		}
 	}
 
 	if (!containsWildcard)

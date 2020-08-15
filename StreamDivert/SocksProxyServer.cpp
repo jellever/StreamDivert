@@ -44,6 +44,11 @@ void SocksProxyServer::SetAuthPassword(std::string& password)
 	this->password = password;
 }
 
+int SocksProxyServer::GetPort()
+{
+	return this->port;
+}
+
 
 std::string SocksProxyServer::getSelfDescription()
 {

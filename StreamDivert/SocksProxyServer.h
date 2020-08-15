@@ -102,6 +102,7 @@ public:
 	void SetAuthType(Socks5AuthMethods method);
 	void SetAuthUsername(std::string& username);
 	void SetAuthPassword(std::string& password);
+	int GetPort();
 	bool Start();
 	bool Stop();
 };
