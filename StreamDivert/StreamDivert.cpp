@@ -19,7 +19,7 @@
 #include "utils.h"
 #include "config.h"
 #include "WindowsFirewall.h"
-
+#include "SocksProxyServer.h"
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
@@ -56,6 +56,16 @@ int __cdecl main(int argc, char **argv)
 			error("Failed to initialize FW object");
 		}
 	}
+
+	SocksProxyServer server(1337, true, true);
+	server.SetAuthUsername(std::string("jelle"));
+	server.SetAuthPassword(std::string("test"));
+	server.SetAuthType(Socks5AuthMethods::USERPASS);
+	server.Start();
+	//Wait indefinitely
+	std::promise<void> p;
+	p.get_future().wait();
+
 	
 	info("Parsing config file...");
 	RelayConfig cfg = LoadConfig(cfgPath);
@@ -103,7 +113,7 @@ int __cdecl main(int argc, char **argv)
 	proxies.push_back(outboundProxy);
 
 	//Wait indefinitely
-	std::promise<void> p;
+	//std::promise<void> p;
 	p.get_future().wait();	
 }
 

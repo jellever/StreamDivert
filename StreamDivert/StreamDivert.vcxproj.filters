@@ -66,6 +66,12 @@
     <ClInclude Include="WindowsFirewall.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="SocksProxyServer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="sockutils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -99,6 +105,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="WindowsFirewall.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SocksProxyServer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sockutils.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

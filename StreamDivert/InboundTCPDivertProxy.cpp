@@ -3,6 +3,7 @@
 #include "utils.h"
 #include "windivert.h"
 #include <ws2tcpip.h>
+#include "sockutils.h"
 
 
 InboundTCPDivertProxy::InboundTCPDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords)
@@ -229,8 +230,8 @@ void InboundTCPDivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* pro
 		tunnelDataB->sockB = clientSock;
 		tunnelDataB->sockBAddr = clientSockIp;
 		tunnelDataB->sockBPort = clientSrcPort;
-		std::thread tunnelThread(&InboundTCPDivertProxy::ProxyTunnelWorker, this, tunnelDataA);
-		this->ProxyTunnelWorker(tunnelDataB);
+		std::thread tunnelThread(&ProxyTunnelWorker, tunnelDataA, this->selfDescStr);
+		ProxyTunnelWorker(tunnelDataB, this->selfDescStr);
 		tunnelThread.join();
 	}
 
@@ -242,52 +243,6 @@ cleanup:
 
 	info("%s: ProxyConnectionWorker exiting for client %s:%hu", selfDesc.c_str(), srcAddr.c_str(), clientSrcPort);
 	return;
-}
-
-void InboundTCPDivertProxy::ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData)
-{
-	SOCKET sockA = proxyTunnelWorkerData->sockA;
-	std::string sockAAddrStr = proxyTunnelWorkerData->sockAAddr.to_string();
-	UINT16 sockAPort = proxyTunnelWorkerData->sockAPort;
-	SOCKET sockB = proxyTunnelWorkerData->sockB;
-	std::string sockBAddrStr = proxyTunnelWorkerData->sockBAddr.to_string();
-	UINT16 sockBPort = proxyTunnelWorkerData->sockBPort;
-	delete proxyTunnelWorkerData;
-	char buf[8192];
-	int recvLen;
-	std::string selfDesc = this->getStringDesc();
-	while (true)
-	{
-		recvLen = recv(sockA, buf, sizeof(buf), 0);
-		if (recvLen == SOCKET_ERROR)
-		{
-			warning("%s: failed to recv from socket A(%s:%hu): %d", selfDesc.c_str(), sockAAddrStr.c_str(), sockAPort, WSAGetLastError());
-			goto failure;
-		}
-		if (recvLen == 0)
-		{
-			shutdown(sockA, SD_RECEIVE);
-			shutdown(sockB, SD_SEND);
-			goto end; //return
-		}
-
-		for (int i = 0; i < recvLen; )
-		{
-			int sendLen = send(sockB, buf + i, recvLen - i, 0);
-			if (sendLen == SOCKET_ERROR)
-			{
-				warning("%s: failed to send to socket B(%s:%hu): %d", selfDesc.c_str(), sockBAddrStr.c_str(), sockBPort, WSAGetLastError());				
-				goto failure; //return
-			}
-			i += sendLen;
-		}
-	}
-
-failure:
-	shutdown(sockA, SD_BOTH);
-	shutdown(sockB, SD_BOTH);
-end:
-	info("%s: ProxyTunnelWorker(%s:%hu -> %s:%hu) exiting", selfDesc.c_str(), sockAAddrStr.c_str(), sockAPort, sockBAddrStr.c_str(), sockBPort);
 }
 
 std::string InboundTCPDivertProxy::generateDivertFilterString()

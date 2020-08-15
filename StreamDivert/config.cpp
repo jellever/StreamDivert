@@ -24,12 +24,22 @@ RelayConfig LoadConfig(std::string path)
 		if (sscanf_s(line.c_str(), "%[a-z] < %hu %s -> %s %hu", &proto[0], _countof(proto), &localPort, &srcAddr[0], _countof(srcAddr), &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
 		{
 			InboundRelayEntry entry;
+			entry.type = InboundRelayEntryType::Divert;
 			entry.protocol = std::string(proto);
 			entry.localPort = localPort;
 			entry.srcAddr = IpAddr(srcAddr);
 			entry.forwardAddr = IpAddr(forwardAddr);
 			entry.forwardPort = forwardPort;
 			result.inboundRelayEntries.push_back(entry);			
+		}
+		else if (sscanf_s(line.c_str(), "%[a-z] < %hu %s -> socks", &proto[0], _countof(proto), &localPort, &srcAddr[0], _countof(srcAddr)) == 3)
+		{
+			InboundRelayEntry entry;
+			entry.type = InboundRelayEntryType::Socks;
+			entry.protocol = std::string(proto);
+			entry.localPort = localPort;
+			entry.srcAddr = IpAddr(srcAddr);			
+			result.inboundRelayEntries.push_back(entry);
 		}
 		else if(sscanf_s(line.c_str(), "%[a-z] > %s %hu -> %s %hu", &proto[0], _countof(proto), &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
 		{

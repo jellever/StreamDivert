@@ -4,9 +4,16 @@
 #include <vector>
 #include <map>
 
+enum InboundRelayEntryType
+{
+	None,
+	Divert,
+	Socks
+};
 
 struct InboundRelayEntry
 {
+	InboundRelayEntryType type;
 	std::string protocol;
 	UINT16 localPort;
 	IpAddr srcAddr;
