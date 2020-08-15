@@ -3,15 +3,18 @@
 #include "utils.h"
 #include "windivert.h"
 #include <ws2tcpip.h>
+#include "sockutils.h"
 
 
 InboundTCPDivertProxy::InboundTCPDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords)
+	: socksServer(0)
 {	
 	this->localPort = localPort;
 	this->localProxyPort = 0;
 	this->proxyRecords = proxyRecords;
 	this->proxySock = NULL;
 	this->selfDescStr = this->getStringDesc();
+	this->containsSocksRecords = false;
 }
 
 InboundTCPDivertProxy::~InboundTCPDivertProxy()
@@ -76,7 +79,17 @@ bool InboundTCPDivertProxy::Start()
 		{
 			error("%s: failed to listen socket (%d)", this->selfDescStr.c_str(), WSAGetLastError());
 			goto failure;
-		}		
+		}
+
+		for each (auto record in this->proxyRecords)
+		{
+			if (record.type == InboundRelayEntryType::Socks)
+			{
+				this->socksServer.Start();
+				containsSocksRecords = true;
+				break;
+			}
+		}
 
 		BaseProxy::Start();
 	}//lock scope
@@ -115,23 +128,38 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 				tcp_hdr->DstPort == htons(this->localPort))
 			{
 				std::string dstAddrStr = dstAddr.to_string();
-				info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
-				tcp_hdr->DstPort = htons(this->localProxyPort);
-				break;
+				if (record->type == InboundRelayEntryType::Divert)
+				{
+					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
+					tcp_hdr->DstPort = htons(this->localProxyPort);
+					break;
+				}
+				else if (record->type == InboundRelayEntryType::Socks)
+				{
+					int socksPort = this->socksServer.GetPort();
+					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), socksPort);
+					tcp_hdr->DstPort = htons(socksPort);
+					break;
+				}
 			}
-		}			
+		}
 	}
 	else
 	{
 		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 		{
-			if ((dstAddr == record->srcAddr || record->srcAddr == anyIpAddr) &&
-				tcp_hdr->SrcPort == htons(this->localProxyPort))
+			if ((dstAddr == record->srcAddr || record->srcAddr == anyIpAddr))
 			{
-				std::string srcAddrStr = srcAddr.to_string();
-				info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
-				tcp_hdr->SrcPort = htons(this->localPort);
-				break;
+				if (
+					(record->type == InboundRelayEntryType::Divert && tcp_hdr->SrcPort == htons(this->localProxyPort) ) ||
+					(record->type == InboundRelayEntryType::Socks && tcp_hdr->SrcPort == htons(this->socksServer.GetPort()))
+					)
+				{
+					std::string srcAddrStr = srcAddr.to_string();
+					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
+					tcp_hdr->SrcPort = htons(this->localPort);
+					break;
+				}				
 			}
 		}
 	}
@@ -229,8 +257,8 @@ void InboundTCPDivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* pro
 		tunnelDataB->sockB = clientSock;
 		tunnelDataB->sockBAddr = clientSockIp;
 		tunnelDataB->sockBPort = clientSrcPort;
-		std::thread tunnelThread(&InboundTCPDivertProxy::ProxyTunnelWorker, this, tunnelDataA);
-		this->ProxyTunnelWorker(tunnelDataB);
+		std::thread tunnelThread(&ProxyTunnelWorker, tunnelDataA, this->selfDescStr);
+		ProxyTunnelWorker(tunnelDataB, this->selfDescStr);
 		tunnelThread.join();
 	}
 
@@ -244,58 +272,18 @@ cleanup:
 	return;
 }
 
-void InboundTCPDivertProxy::ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData)
-{
-	SOCKET sockA = proxyTunnelWorkerData->sockA;
-	std::string sockAAddrStr = proxyTunnelWorkerData->sockAAddr.to_string();
-	UINT16 sockAPort = proxyTunnelWorkerData->sockAPort;
-	SOCKET sockB = proxyTunnelWorkerData->sockB;
-	std::string sockBAddrStr = proxyTunnelWorkerData->sockBAddr.to_string();
-	UINT16 sockBPort = proxyTunnelWorkerData->sockBPort;
-	delete proxyTunnelWorkerData;
-	char buf[8192];
-	int recvLen;
-	std::string selfDesc = this->getStringDesc();
-	while (true)
-	{
-		recvLen = recv(sockA, buf, sizeof(buf), 0);
-		if (recvLen == SOCKET_ERROR)
-		{
-			warning("%s: failed to recv from socket A(%s:%hu): %d", selfDesc.c_str(), sockAAddrStr.c_str(), sockAPort, WSAGetLastError());
-			goto failure;
-		}
-		if (recvLen == 0)
-		{
-			shutdown(sockA, SD_RECEIVE);
-			shutdown(sockB, SD_SEND);
-			goto end; //return
-		}
-
-		for (int i = 0; i < recvLen; )
-		{
-			int sendLen = send(sockB, buf + i, recvLen - i, 0);
-			if (sendLen == SOCKET_ERROR)
-			{
-				warning("%s: failed to send to socket B(%s:%hu): %d", selfDesc.c_str(), sockBAddrStr.c_str(), sockBPort, WSAGetLastError());				
-				goto failure; //return
-			}
-			i += sendLen;
-		}
-	}
-
-failure:
-	shutdown(sockA, SD_BOTH);
-	shutdown(sockB, SD_BOTH);
-end:
-	info("%s: ProxyTunnelWorker(%s:%hu -> %s:%hu) exiting", selfDesc.c_str(), sockAAddrStr.c_str(), sockAPort, sockBAddrStr.c_str(), sockBPort);
-}
-
 std::string InboundTCPDivertProxy::generateDivertFilterString()
 {
 	std::string result = "tcp";
 	std::vector<std::string> orExpressions;
 	std::string proxyFilterStr = "(tcp.SrcPort == " + std::to_string(this->localProxyPort) + ")";
 	orExpressions.push_back(proxyFilterStr);
+
+	if (this->containsSocksRecords)
+	{
+		proxyFilterStr = "(tcp.SrcPort == " + std::to_string(this->socksServer.GetPort()) + ")";
+		orExpressions.push_back(proxyFilterStr);
+	}
 
 	//check for wildcard address
 	bool containsWildcard = false;	
@@ -307,7 +295,7 @@ std::string InboundTCPDivertProxy::generateDivertFilterString()
 			orExpressions.push_back(recordFilterStr);
 			containsWildcard = true;
 			break;
-		}		
+		}
 	}
 
 	if (!containsWildcard)

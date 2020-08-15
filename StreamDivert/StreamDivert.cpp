@@ -19,7 +19,7 @@
 #include "utils.h"
 #include "config.h"
 #include "WindowsFirewall.h"
-
+#include "SocksProxyServer.h"
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance

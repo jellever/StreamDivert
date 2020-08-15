@@ -9,6 +9,7 @@
 #include "config.h"
 #include"ipaddr.h"
 #include "InboundDivertProxy.h"
+#include "SocksProxyServer.h"
 
 
 class InboundTCPDivertProxy : public BaseProxy
@@ -20,6 +21,8 @@ protected:
 	UINT16 localPort;
 	UINT16 localProxyPort;
 	std::vector<InboundRelayEntry> proxyRecords;
+	SocksProxyServer socksServer;
+	bool containsSocksRecords;
 
 	std::string getStringDesc();
 	void ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr);
@@ -27,7 +30,6 @@ protected:
 	void ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr);
 	void ProxyWorker();
 	void ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData);
-	void ProxyTunnelWorker(ProxyTunnelWorkerData* proxyTunnelWorkerData);
 	std::string generateDivertFilterString();
 	bool findProxyRecordBySrcAddr(IpAddr& srcIp, InboundRelayEntry& proxyRecord);
 public:

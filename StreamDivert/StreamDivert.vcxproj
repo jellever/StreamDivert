@@ -188,6 +188,8 @@ xcopy "$(SolutionDir)\WinDivert\$(PlatformTargetAsMSBuildArchitecture)\WinDivert
     <ClInclude Include="BaseProxy.h" />
     <ClInclude Include="OutboundDivertProxy.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="SocksProxyServer.h" />
+    <ClInclude Include="sockutils.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="StreamDivert.h" />
     <ClInclude Include="targetver.h" />
@@ -203,6 +205,8 @@ xcopy "$(SolutionDir)\WinDivert\$(PlatformTargetAsMSBuildArchitecture)\WinDivert
     <ClCompile Include="ipaddr.cpp" />
     <ClCompile Include="BaseProxy.cpp" />
     <ClCompile Include="OutboundDivertProxy.cpp" />
+    <ClCompile Include="SocksProxyServer.cpp" />
+    <ClCompile Include="sockutils.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
