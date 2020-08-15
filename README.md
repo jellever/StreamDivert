@@ -51,7 +51,9 @@ The [-f] flag, when present, will modify the Windows Firewall to add an exceptio
 ## Some Use Cases
 *  Diverting outbound C&C traffic to a local socket for dynamic malware analysis.
 *  Diverting inbound SMB connections of a compromised host to Responder/ ntlmrelayx (usefull in penetration tests).
-*  Routing C&C protocols over reserved ports. For example routing a meterpreter bind shell over port 445.
+*  Routing traffic over reserved ports. Usefull when a network firewall is in between. For example...
+    *  Routing a meterpreter shell over port 445.
+    *  Running a SOCKS server on port 3389.
 *  ...
 
 ## Help! My packets/ connections are not correctly diverted!
