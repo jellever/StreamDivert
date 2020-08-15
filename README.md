@@ -4,6 +4,7 @@ StreamDivert is a tool to man-in-the-middle or relay in and outgoing network con
 
 *  Relay all incoming connections to a specific port to another destination.
 *  Relay incoming connections from a specific source IP to a port to another destination.
+*  Relay incoming connections to a SOCKS(4/5) server.
 *  Relay all outgoing connections to a specific port to another destination.
 *  Relay outgoing connections to a specific IP and port to another destination.
 *  Handle TCP, UDP and ICMP traffic over IPv4 and IPv6.
@@ -22,6 +23,9 @@ The config file contains entries for streams you want to have diverted. En examp
 ```conf
 //Divert all inbound TCP connections to port 445 (SMB) coming from 10.0.1.50 to 10.0.1.49 port 445
 tcp < 445 10.0.1.50 -> 10.0.1.49 445
+
+//Divert all inbound TCP connections to port 445 (SMB) coming from 10.0.1.51 to a local SOCKS server
+tcp < 445 10.0.1.51 -> socks
 
 //Divert all inbound TCP connections to port 445 (SMB) coming from fe80::f477:846a:775d:d37 to fe80::20c:29ff:fe6f:88ff port 445
 tcp < 445 fe80::f477:846a:775d:d37 -> fe80::20c:29ff:fe6f:88ff 445
