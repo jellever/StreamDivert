@@ -346,7 +346,10 @@ bool InboundTCPDivertProxy::Stop()
 	{
 		this->proxyThread.join();
 	}
-
+	if (this->socksServer.IsRunning())
+	{
+		return this->socksServer.Stop();
+	}
 	return true;
 }
 

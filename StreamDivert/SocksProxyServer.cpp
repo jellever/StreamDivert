@@ -49,6 +49,11 @@ int SocksProxyServer::GetPort()
 	return this->port;
 }
 
+bool SocksProxyServer::IsRunning()
+{
+	return this->running;
+}
+
 
 std::string SocksProxyServer::getSelfDescription()
 {
@@ -148,7 +153,7 @@ SOCKET SocksProxyServer::ProcessSocks4Connection(SOCKET sock)
 	}
 	else
 	{
-		error("Unsupported socks4 cmd: %hhi", cmd);		
+		error("Unsupported socks4 cmd: %hhi", cmd);
 	}
 	return proxySock;
 }
@@ -179,7 +184,7 @@ SOCKET SocksProxyServer::ProcessSocks5Connection(SOCKET sock)
 	| 1  |  1  | X'00' |  1   | Variable |    2     |
 	+----+-----+-------+------+----------+----------+
 	*/
-	
+
 	if (!recvallb(sock, &buffer[0], sizeof(buffer)))
 	{
 		goto failure;
@@ -192,11 +197,11 @@ SOCKET SocksProxyServer::ProcessSocks5Connection(SOCKET sock)
 	{
 		goto failure;
 	}
-	
+
 	addrType = (Socks5AddressType)buffer[3];
 	if (addrType == Socks5AddressType::AddrTypeIPv4)
 	{
-		in_addr addr;		
+		in_addr addr;
 		if (!recvallb(sock, (char*)&addr.S_un.S_addr, sizeof(addr)))
 		{
 			goto failure;
@@ -207,7 +212,7 @@ SOCKET SocksProxyServer::ProcessSocks5Connection(SOCKET sock)
 		}
 		port = ntohs(port);
 		ipAddr = IpAddr(addr);
-		proxySock = this->socksConnect(ipAddr, port);		
+		proxySock = this->socksConnect(ipAddr, port);
 	}
 	else if (addrType == Socks5AddressType::AddrTypeIPv6)
 	{
@@ -227,7 +232,7 @@ SOCKET SocksProxyServer::ProcessSocks5Connection(SOCKET sock)
 	else if (addrType == Socks5AddressType::AddrTypeDomainName)
 	{
 		unsigned char domainLen;
-		char domainBuf[1024];		
+		char domainBuf[1024];
 		if (!recvallb(sock, (char*)&domainLen, sizeof(domainLen)))
 		{
 			goto failure;
@@ -235,7 +240,7 @@ SOCKET SocksProxyServer::ProcessSocks5Connection(SOCKET sock)
 		if (!recvallb(sock, (char*)&domainBuf[0], domainLen))
 		{
 			goto failure;
-		}		
+		}
 		if (!recvallb(sock, (char*)&port, sizeof(port)))
 		{
 			goto failure;
@@ -264,15 +269,15 @@ bool SocksProxyServer::socks5Auth(SOCKET sock, int methods)
 	bool supported = false;
 	for (int i = 0; i < methods; i++) {
 		char type;
-		recvallb(sock, (char*)&type, 1);		
+		recvallb(sock, (char*)&type, 1);
 		if (type == this->socks5AuthType) {
-			supported = true;			
+			supported = true;
 		}
 	}
 	if (!supported) {
 		this->socks5SendAuthNotSupported(sock);
 		return false;
-	}	
+	}
 	switch (this->socks5AuthType) {
 	case Socks5AuthMethods::NOAUTH:
 		this->socks5SendNoAth(sock);
@@ -306,10 +311,10 @@ bool SocksProxyServer::socks5UserPassAuthentication(SOCKET sock)
 
 	/*
 	+----+------+----------+------+----------+
-    |VER | ULEN |  UNAME   | PLEN |  PASSWD  |
-    +----+------+----------+------+----------+
-    | 1  |  1   | 1 to 255 |  1   | 1 to 255 |
-    +----+------+----------+------+----------+
+	|VER | ULEN |  UNAME   | PLEN |  PASSWD  |
+	+----+------+----------+------+----------+
+	| 1  |  1   | 1 to 255 |  1   | 1 to 255 |
+	+----+------+----------+------+----------+
 	*/
 	char ver;
 	if (!recvallb(sock, &ver, sizeof(ver)))
@@ -363,7 +368,7 @@ bool SocksProxyServer::socks5SendClientResponse(SOCKET sock, Socks5ClientRespons
 	{
 		return false;
 	}
-	if (addrType == Socks5AddressType::AddrTypeIPv4 )
+	if (addrType == Socks5AddressType::AddrTypeIPv4)
 	{
 		in_addr addr = ipAddr->get_ipv4_addr();
 		if (!sendallb(sock, (char*)&addr, sizeof(addr)))
@@ -419,9 +424,9 @@ bool SocksProxyServer::socks4aSendClientResponse(SOCKET sock, Socks4aClientRespo
 	90: request granted
 	91: request rejected or failed
 	92: request rejected becasue SOCKS server cannot connect to
-	    identd on the client
+		identd on the client
 	93: request rejected because the client program and identd
-	    report different user-ids
+		report different user-ids
 		*/
 	char resp[8] = { 0x00, (char)status, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	return sendallb(sock, resp, sizeof(resp));
@@ -489,11 +494,11 @@ SOCKET SocksProxyServer::socksConnect(std::string domain, int port)
 				ipAddr = IpAddr(((sockaddr_in6*)r->ai_addr)->sin6_addr);
 				sock = this->socksConnect(ipAddr, port);
 			}
-			
+
 			if (sock != INVALID_SOCKET)
 			{
 				break;
-			}			
+			}
 		}
 	}
 
@@ -522,7 +527,7 @@ void SocksProxyServer::ProxyConnectionWorker(SocksServerConnectionData* data)
 		if (this->enableSocks4)
 		{
 			proxySock = this->ProcessSocks4Connection(sock);
-		}	
+		}
 		else
 		{
 			warning("Received unsupported SOCKS connection");
@@ -551,7 +556,7 @@ void SocksProxyServer::ProxyConnectionWorker(SocksServerConnectionData* data)
 			error("%s: failed to get bind socket port (%d)", this->selfDescStr.c_str(), WSAGetLastError());
 			goto failure;
 		}
-		
+
 
 		ProxyTunnelWorkerData* tunnelDataA = new ProxyTunnelWorkerData();
 		ProxyTunnelWorkerData* tunnelDataB = new ProxyTunnelWorkerData();
@@ -663,5 +668,21 @@ failure:
 
 bool SocksProxyServer::Stop()
 {
-	return false;
+	info("%s: Stop", this->selfDescStr.c_str());
+	{//lock scope
+		std::lock_guard<std::recursive_mutex> lock(this->resourceLock);
+		this->running = false;
+		if (this->serverSock != NULL)
+		{
+			shutdown(this->serverSock, SD_BOTH);
+			closesocket(this->serverSock);
+			this->serverSock = NULL;
+		}
+	}
+	if (this->serverThread.joinable())
+	{
+		this->serverThread.join();
+	}
+
+	return true;
 }

@@ -103,6 +103,7 @@ public:
 	void SetAuthUsername(std::string& username);
 	void SetAuthPassword(std::string& password);
 	int GetPort();
+	bool IsRunning();
 	bool Start();
 	bool Stop();
 };
