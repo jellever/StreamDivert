@@ -10,7 +10,7 @@ StreamDivert is a tool to man-in-the-middle or relay in and outgoing network con
 *  Handle TCP, UDP and ICMP traffic over IPv4 and IPv6.
 
 ## Download Binaries
-Pre-compiled binaries for StreamDivert can be downloaded [here](url).
+Pre-compiled binaries for StreamDivert can be downloaded [here](https://github.com/jellever/StreamDivert/releases).
 
 ## Usage
 How do you use StreamDivert? Run the the tool:
