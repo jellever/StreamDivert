@@ -142,6 +142,7 @@ xcopy "$(SolutionDir)\WinDivert\$(PlatformTargetAsMSBuildArchitecture)\WinDivert
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(SolutionDir)WinDivert\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>WinDivert.lib;Ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(SolutionDir)\WinDivert\$(PlatformTargetAsMSBuildArchitecture)\WinDivert.dll" "$(OutDir)" /y /d

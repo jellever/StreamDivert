@@ -88,7 +88,7 @@ int __cdecl main(int argc, char **argv)
 		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(mapping.first, mapping.second);
 		proxy->Start();
 		proxies.push_back(proxy);
-		proxy->Stop();
+		//proxy->Stop();
 	}
 	
 	InboundUDPDivertProxy* inboundUDPProxy = new InboundUDPDivertProxy(inboundUDPRelayEntries);
