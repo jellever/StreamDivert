@@ -13,7 +13,7 @@ StreamDivert is a tool to man-in-the-middle or relay in and outgoing network con
 Pre-compiled binaries for StreamDivert can be downloaded [here](https://github.com/jellever/StreamDivert/releases).
 
 ## Usage
-How do you use StreamDivert? Run the the tool:
+How do you use StreamDivert? Run the the tool with administrative privileges:
 
 ```console
 streamdivert.exe config_file [-f]
