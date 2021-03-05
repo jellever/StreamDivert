@@ -8,6 +8,7 @@ StreamDivert is a tool to man-in-the-middle or relay in and outgoing network con
 *  Relay all outgoing connections to a specific port to another destination.
 *  Relay outgoing connections to a specific IP and port to another destination.
 *  Handle TCP, UDP and ICMP traffic over IPv4 and IPv6.
+*  Force redirected packets over a specific network interface.
 
 ## Download Binaries
 Pre-compiled binaries for StreamDivert can be downloaded [here](https://github.com/jellever/StreamDivert/releases).
@@ -41,6 +42,12 @@ icmp < 10.0.1.50 -> 10.0.1.49
 
 //Divert all outbound TCP connections to 10.0.1.50, port 80 to 10.0.1.49 port 8080
 tcp > 10.0.1.50 80 -> 10.0.1.49 8080
+
+//Send all packets going to 10.0.1.50 port 80 and prefer interface 9 to send them. If the interface does not exist or is not up, the packets are send from the default interface.
+tcp > 10.0.1.50 80 -> 10.0.1.50 80 force interface 9
+
+//Force all packets going to 10.0.1.50 port 80 over interface 9, or drop the packets if the interface does not exist or is not up.
+tcp > 10.0.1.50 80 -> 10.0.1.50 80 force interface 9
 
 //Divert all outbound UDP connection to port 53 (DNS) to 10.0.1.49 port 53
 udp > 0.0.0.0 53 -> 10.0.1.49 53
