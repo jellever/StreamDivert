@@ -4,14 +4,63 @@
 
 HANDLE msgLock = CreateMutex(NULL, FALSE, NULL);
 
-void message(const char *msg, ...)
-{
-	va_list args;
-	va_start(args, msg);
+void message(const char *msg, va_list args)
+{	
 	WaitForSingleObject(msgLock, INFINITE);
 	vfprintf(stderr, msg, args);
 	putc('\n', stderr);
-	ReleaseMutex(msgLock);
+	ReleaseMutex(msgLock);	
+}
+
+void verror(std::string msg, va_list args)
+{
+	message(("[-] " + msg).c_str(), args);
+}
+
+void vwarning(std::string msg, va_list args)
+{
+	message(("[!] " + msg).c_str(), args);
+}
+
+void vinfo(std::string msg, va_list args)
+{	
+	message(("[*] " + msg).c_str(), args);
+}
+
+void vdebug(std::string msg, va_list args)
+{
+	message(("[*] " + msg).c_str(), args);
+}
+
+void error(std::string msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	verror(msg, args);
+	va_end(args);
+}
+
+void warning(std::string msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	vwarning(msg, args);
+	va_end(args);
+}
+
+void info(std::string msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	vinfo(msg, args);
+	va_end(args);
+}
+
+void debug(std::string msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	vinfo(msg, args);
 	va_end(args);
 }
 
@@ -36,4 +85,19 @@ std::string GetApplicationExecutablePath()
 	char buffer[MAX_PATH];
 	DWORD stat = GetModuleFileNameA(NULL, &buffer[0], sizeof(buffer));
 	return std::string(&buffer[0]);
+}
+
+char* basename(char* filepath)
+{
+	char* pfile;
+	pfile = filepath + strlen(filepath);
+	for (; pfile > filepath; pfile--)
+	{
+		if ((*pfile == '\\') || (*pfile == '/'))
+		{
+			pfile++;
+			break;
+		}
+	}
+	return pfile;
 }

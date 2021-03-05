@@ -6,8 +6,9 @@
 #include "sockutils.h"
 
 
-InboundTCPDivertProxy::InboundTCPDivertProxy(const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords)
-	: socksServer(0)
+InboundTCPDivertProxy::InboundTCPDivertProxy(bool verbose, const UINT16 localPort, const std::vector<InboundRelayEntry>& proxyRecords)
+	: BaseProxy(verbose),
+	socksServer(0)
 {	
 	this->localPort = localPort;
 	this->localProxyPort = 0;
@@ -32,27 +33,27 @@ bool InboundTCPDivertProxy::Start()
 	//lock scope
 	{
 		std::lock_guard<std::recursive_mutex> lock(this->resourceLock);
-		info("%s: Start", this->selfDescStr.c_str());
+		this->logInfo("Start");
 
 		if (WSAStartup(wsa_version, &wsa_data) != 0)
 		{
-			error("%s: failed to start WSA (%d)", this->selfDescStr.c_str(), GetLastError());
+			this->logError("failed to start WSA (%d)", GetLastError());
 			goto failure;
 		}
 		this->proxySock = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 		if (this->proxySock == INVALID_SOCKET)
 		{
-			error("%s: failed to create socket (%d)", this->selfDescStr.c_str(), WSAGetLastError());
+			this->logError("failed to create socket (%d)", WSAGetLastError());
 			goto failure;
 		}
 		if (setsockopt(this->proxySock, SOL_SOCKET, SO_REUSEADDR, (const char*)&on, sizeof(int)) == SOCKET_ERROR)
 		{
-			error("%s: failed to re-use address (%d)", this->selfDescStr.c_str(), GetLastError());
+			this->logError("failed to re-use address (%d)", GetLastError());
 			goto failure;
 		}
 		if (setsockopt(this->proxySock, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&off, sizeof(int)) == SOCKET_ERROR)
 		{
-			error("%s: failed to set socket dual-stack (%d)", this->selfDescStr.c_str(), GetLastError());
+			this->logError("failed to set socket dual-stack (%d)", GetLastError());
 			goto failure;
 		}
 		memset(&addr, 0, sizeof(addr));
@@ -62,7 +63,7 @@ bool InboundTCPDivertProxy::Start()
 		//inet_pton(AF_INET6, "::1", &addr.sin6_addr);
 		if (::bind(this->proxySock, (SOCKADDR *)&addr, sizeof(addr)) == SOCKET_ERROR)
 		{
-			error("%s: failed to bind socket (%d)", this->selfDescStr.c_str(), WSAGetLastError());
+			this->logError("failed to bind socket (%d)", WSAGetLastError());
 			goto failure;
 		}
 
@@ -70,14 +71,14 @@ bool InboundTCPDivertProxy::Start()
 		int bind_addr_len = sizeof(bind_addr);
 		if (getsockname(this->proxySock, (struct sockaddr *)&bind_addr, &bind_addr_len) == -1)
 		{
-			error("%s: failed to get bind socket port (%d)", this->selfDescStr.c_str(), WSAGetLastError());
+			this->logError("failed to get bind socket port (%d)", WSAGetLastError());
 		}
 		this->localProxyPort = ntohs(bind_addr.sin6_port);
 		this->selfDescStr = this->getStringDesc();
 
 		if (listen(this->proxySock, 16) == SOCKET_ERROR)
 		{
-			error("%s: failed to listen socket (%d)", this->selfDescStr.c_str(), WSAGetLastError());
+			this->logError("failed to listen socket (%d)",  WSAGetLastError());
 			goto failure;
 		}
 
@@ -118,7 +119,7 @@ std::string InboundTCPDivertProxy::getStringDesc()
 	return result;
 }
 
-void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr)
+PacketAction InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr)
 {
 	if (!addr->Outbound)
 	{
@@ -130,14 +131,14 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 				std::string dstAddrStr = dstAddr.to_string();
 				if (record->type == InboundRelayEntryType::Divert)
 				{
-					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), this->localProxyPort);
+					this->logDebug("Modify packet dst -> %s:%hu", dstAddrStr.c_str(), this->localProxyPort);
 					tcp_hdr->DstPort = htons(this->localProxyPort);
 					break;
 				}
 				else if (record->type == InboundRelayEntryType::Socks)
 				{
 					int socksPort = this->socksServer.GetPort();
-					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), socksPort);
+					this->logDebug("Modify packet dst -> %s:%hu", dstAddrStr.c_str(), socksPort);
 					tcp_hdr->DstPort = htons(socksPort);
 					break;
 				}
@@ -156,13 +157,14 @@ void InboundTCPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet
 					)
 				{
 					std::string srcAddrStr = srcAddr.to_string();
-					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), srcAddrStr.c_str(), this->localPort);
+					this->logDebug("Modify packet src -> %s:%hu", srcAddrStr.c_str(), this->localPort);
 					tcp_hdr->SrcPort = htons(this->localPort);
 					break;
 				}				
 			}
 		}
 	}
+	return PacketAction::STATUS_PROCEED;
 }
 
 void InboundTCPDivertProxy::ProxyWorker()
@@ -179,12 +181,12 @@ void InboundTCPDivertProxy::ProxyWorker()
 			{
 				goto cleanup;
 			}
-			warning("%s: failed to accept socket (%d)", this->selfDescStr.c_str(), WSAGetLastError());
+			this->logWarning("failed to accept socket (%d)", WSAGetLastError());
 			continue;
 		}
 		IpAddr clientSockIp = IpAddr(clientSockAddr.sin6_addr);
 		std::string srcAddr = clientSockIp.to_string();
-		info("%s: Incoming connection from %s:%hu", this->selfDescStr.c_str(), srcAddr.c_str(), ntohs(clientSockAddr.sin6_port));
+		this->logInfo("Incoming connection from %s:%hu", srcAddr.c_str(), ntohs(clientSockAddr.sin6_port));
 		ProxyConnectionWorkerData* proxyConnectionWorkerData = new ProxyConnectionWorkerData();
 		proxyConnectionWorkerData->clientSock = incommingSock;
 		proxyConnectionWorkerData->clientAddr = clientSockAddr;
@@ -197,7 +199,7 @@ cleanup:
 		closesocket(this->proxySock);
 		this->proxySock = NULL;
 	}
-	info("%s: ProxyWorker exiting", this->selfDescStr.c_str());
+	this->logInfo("ProxyWorker exiting");
 }
 
 void InboundTCPDivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* proxyConnectionWorkerData)
@@ -225,23 +227,23 @@ void InboundTCPDivertProxy::ProxyConnectionWorker(ProxyConnectionWorkerData* pro
 		destSock = socket(AF_INET6, SOCK_STREAM, 0);
 		if (destSock == INVALID_SOCKET)
 		{
-			error("%s: failed to create socket (%d)", selfDesc.c_str(), WSAGetLastError());
+			this->logError("failed to create socket (%d)", WSAGetLastError());
 			goto cleanup;
 		}
 		if (setsockopt(destSock, IPPROTO_IPV6, IPV6_V6ONLY, (const char*)&off, sizeof(int)) == SOCKET_ERROR)
 		{
-			error("%s: failed to set connect socket dual-stack (%d)", selfDesc.c_str(), GetLastError());
+			this->logError("failed to set connect socket dual-stack (%d)", GetLastError());
 			goto cleanup;
 		}
 		std::string forwardAddr = proxyRecord.forwardAddr.to_string();
-		info("%s: Connecting to forward host %s:%hu", selfDesc.c_str(), forwardAddr.c_str(), proxyRecord.forwardPort);
+		this->logInfo("Connecting to forward host %s:%hu", forwardAddr.c_str(), proxyRecord.forwardPort);
 		if (connect(destSock, (SOCKADDR *)&destAddr, sizeof(destAddr)) == SOCKET_ERROR)
 		{
-			error("%s: failed to connect socket (%d)", selfDesc.c_str(), WSAGetLastError());
+			this->logError("failed to connect socket (%d)", WSAGetLastError());
 			goto cleanup;
 		}
 
-		info("%s: Starting to route %s:%hu -> %s:%hu", selfDesc.c_str(), srcAddr.c_str(), clientSrcPort, forwardAddr.c_str(), proxyRecord.forwardPort);
+		this->logInfo("Starting to route %s:%hu -> %s:%hu", srcAddr.c_str(), clientSrcPort, forwardAddr.c_str(), proxyRecord.forwardPort);
 		ProxyTunnelWorkerData* tunnelDataA = new ProxyTunnelWorkerData();
 		ProxyTunnelWorkerData* tunnelDataB = new ProxyTunnelWorkerData();
 		tunnelDataA->sockA = clientSock;
@@ -268,7 +270,7 @@ cleanup:
 	if (destSock != NULL)
 		closesocket(destSock);
 
-	info("%s: ProxyConnectionWorker exiting for client %s:%hu", selfDesc.c_str(), srcAddr.c_str(), clientSrcPort);
+	this->logInfo("ProxyConnectionWorker exiting for client %s:%hu", srcAddr.c_str(), clientSrcPort);
 	return;
 }
 
@@ -330,7 +332,7 @@ bool InboundTCPDivertProxy::findProxyRecordBySrcAddr(IpAddr& srcAddr, InboundRel
 
 bool InboundTCPDivertProxy::Stop()
 {	
-	info("%s: Stop", this->selfDescStr.c_str());
+	this->logInfo("Stop");
 	{//lock scope
 		std::lock_guard<std::recursive_mutex> lock(this->resourceLock);
 		BaseProxy::Stop();
@@ -353,11 +355,13 @@ bool InboundTCPDivertProxy::Stop()
 	return true;
 }
 
-void InboundTCPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+PacketAction InboundTCPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
 {
+	return PacketAction::STATUS_PROCEED;
 }
 
-void InboundTCPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
+PacketAction InboundTCPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
 {
+	return PacketAction::STATUS_PROCEED;
 }
 

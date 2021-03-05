@@ -28,7 +28,11 @@ struct OutboundRelayEntry
 	UINT16 dstPort;
 	IpAddr forwardAddr;
 	UINT forwardPort;
+	UINT32 interfaceIdx;
+	bool forceInterfaceIdx;
 };
+
+
 
 struct RelayConfig
 {
@@ -36,4 +40,4 @@ struct RelayConfig
 	std::vector<OutboundRelayEntry> outboundRelayEntries;
 };
 
-RelayConfig LoadConfig(std::string path);
+bool LoadConfig(std::string path, RelayConfig& result);

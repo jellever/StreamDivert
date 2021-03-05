@@ -8,9 +8,9 @@
 /*
 * Cleanup completed I/O requests.
 */
-static void cleanup(HANDLE ioport, OVERLAPPED *ignore)
+static void cleanup(HANDLE ioport, OVERLAPPED* ignore)
 {
-	OVERLAPPED *overlapped;
+	OVERLAPPED* overlapped;
 	DWORD iolen;
 	ULONG_PTR iokey = 0;
 
@@ -24,7 +24,51 @@ static void cleanup(HANDLE ioport, OVERLAPPED *ignore)
 }
 
 
-std::string BaseProxy::getIpAddrIpStr(IpAddr & addr)
+void BaseProxy::logDebug(const char* msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	if (this->verbose)
+	{
+		std::string selfDesc = this->selfDescStr;
+		std::string msgStr = selfDesc + " " + msg;
+		vdebug(msgStr.c_str(), args);
+
+	}
+	va_end(args);
+}
+
+void BaseProxy::logInfo(const char* msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	std::string selfDesc = this->selfDescStr;
+	std::string msgStr = selfDesc + " " + msg;
+	vinfo(msgStr.c_str(), args);
+	va_end(args);
+}
+
+void BaseProxy::logWarning(const char* msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	std::string selfDesc = this->selfDescStr;
+	std::string msgStr = selfDesc + " " + msg;
+	vwarning(msgStr.c_str(), args);	
+	va_end(args);
+}
+
+void BaseProxy::logError(const char* msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	std::string selfDesc = this->selfDescStr;
+	std::string msgStr = selfDesc + " " + msg;
+	verror(msgStr.c_str(), args);
+	va_end(args);
+}
+
+std::string BaseProxy::getIpAddrIpStr(IpAddr& addr)
 {
 	if (addr.get_family() == IPFamily::IPv4)
 	{
@@ -38,9 +82,9 @@ std::string BaseProxy::getIpAddrIpStr(IpAddr & addr)
 }
 
 std::string BaseProxy::getStringDesc()
-{	
+{
 	std::string result = std::string("BaseProxy()");
-	return result;	
+	return result;
 }
 
 std::string BaseProxy::generateDivertFilterString()
@@ -64,11 +108,11 @@ void BaseProxy::SwapIPHeaderDstToSrc(PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR
 {
 	if (ip_hdr)
 	{
-		ip_hdr->SrcAddr = ip_hdr->DstAddr;		
+		ip_hdr->SrcAddr = ip_hdr->DstAddr;
 	}
 	else if (ip6_hdr)
 	{
-		*(in6_addr*)&ip6_hdr->SrcAddr[0] = *(in6_addr*)&ip6_hdr->DstAddr[0];		
+		*(in6_addr*)&ip6_hdr->SrcAddr[0] = *(in6_addr*)&ip6_hdr->DstAddr[0];
 	}
 }
 
@@ -117,6 +161,7 @@ void BaseProxy::DivertWorker()
 	DWORD len;
 	UINT8 protocol;
 	std::string selfDesc = this->getStringDesc();
+	PacketAction action = PacketAction::STATUS_PROCEED;
 
 	while (TRUE)
 	{
@@ -134,7 +179,7 @@ void BaseProxy::DivertWorker()
 			else if (lastErr != ERROR_IO_PENDING)
 			{
 			read_failed:
-				warning("%s: failed to read packet (%d)", selfDesc.c_str(), lastErr);
+				this->logWarning("failed to read packet (%d)", lastErr);
 				continue;
 			}
 
@@ -173,7 +218,7 @@ void BaseProxy::DivertWorker()
 			else
 			{
 				packet_contains_iphdr = false;
-				error("%s: No IP header in packet!?", selfDesc.c_str());
+				this->logError("No IP header in packet!?");
 			}
 
 			if (packet_contains_iphdr)
@@ -185,59 +230,67 @@ void BaseProxy::DivertWorker()
 				if (protocol == IPPROTO_TCP)
 				{
 					UINT16 srcPort = ntohs(tcp_header->SrcPort);
-					UINT16 dstPort = ntohs(tcp_header->DstPort);					
-					info("%s: TCP Packet %s:%hu %s:%hu %s", selfDesc.c_str(), srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());										
-					this->ProcessTCPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header,  tcp_header, srcIp, dstIp);
+					UINT16 dstPort = ntohs(tcp_header->DstPort);
+					this->logDebug("TCP Packet %s:%hu %s:%hu %s", srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());
+					action = this->ProcessTCPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, tcp_header, srcIp, dstIp);
 				}
-				else if(protocol == IPPROTO_ICMP  || protocol == IPPROTO_ICMPV6)
-				{			
-					info("%s: ICMP Packet %s %s %s", selfDesc.c_str(), srcIpStr.c_str(), dstIpStr.c_str(), direction_str.c_str());
-					this->ProcessICMPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, icmp_header, icmp6_header, srcIp, dstIp);
+				else if (protocol == IPPROTO_ICMP || protocol == IPPROTO_ICMPV6)
+				{
+					this->logDebug("ICMP Packet %s %s %s", srcIpStr.c_str(), dstIpStr.c_str(), direction_str.c_str());
+					action = this->ProcessICMPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, icmp_header, icmp6_header, srcIp, dstIp);
 				}
 				else if (protocol == IPPROTO_UDP)
 				{
 					UINT16 srcPort = ntohs(udp_header->SrcPort);
 					UINT16 dstPort = ntohs(udp_header->DstPort);
-					info("%s: UDP Packet %s:%hu %s:%hu %s", selfDesc.c_str(), srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());
-					this->ProcessUDPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, udp_header, srcIp, dstIp);
+					this->logDebug("UDP Packet %s:%hu %s:%hu %s", srcIpStr.c_str(), srcPort, dstIpStr.c_str(), dstPort, direction_str.c_str());
+					action = this->ProcessUDPPacket(&packet[0], recv_packet_len, &addr, ip_header, ip6_header, udp_header, srcIp, dstIp);
 				}
 			}
 		}
 		else
 		{
-			warning("%s: failed to parse packet (%d)", selfDesc.c_str(), GetLastError());
+			this->logWarning("failed to parse packet (%d)", GetLastError());
 		}
 
-		if (!WinDivertHelperCalcChecksums(&packet[0], recv_packet_len, &addr, 0))
+		if (action == PacketAction::STATUS_PROCEED)
 		{
-			error("%s: failed to recalc packet checksum: (%d)", selfDesc.c_str(), GetLastError());
+			if (!WinDivertHelperCalcChecksums(&packet[0], recv_packet_len, &addr, 0))
+			{
+				this->logError("failed to recalc packet checksum: (%d)", GetLastError());
+			}
+			poverlapped = (OVERLAPPED*)malloc(sizeof(OVERLAPPED));
+			if (poverlapped == NULL)
+			{
+				error("%s: failed to allocate poverlapped memory", selfDesc.c_str());
+			}
+			memset(poverlapped, 0, sizeof(OVERLAPPED));
+			if (WinDivertSendEx(this->hDivert, &packet[0], recv_packet_len, NULL, 0, &addr, addr_len, poverlapped))
+			{
+				continue;
+			}
+			if (GetLastError() != ERROR_IO_PENDING)
+			{
+				this->logWarning("failed to send packet (%d)", GetLastError());
+				continue;
+			}
 		}
-		poverlapped = (OVERLAPPED *)malloc(sizeof(OVERLAPPED));
-		if (poverlapped == NULL)
+		else
 		{
-			error("%s: failed to allocate poverlapped memory", selfDesc.c_str());
-		}
-		memset(poverlapped, 0, sizeof(OVERLAPPED));
-		if (WinDivertSendEx(this->hDivert, &packet[0], recv_packet_len, NULL, 0, &addr, addr_len, poverlapped))
-		{
-			continue;
-		}
-		if (GetLastError() != ERROR_IO_PENDING)
-		{
-			warning("%s: failed to send packet (%d)", selfDesc.c_str(), GetLastError());
-			continue;
+			this->logDebug("Dropping packet");
 		}
 	}
 END:
-	info("%s: DivertWorker exiting", selfDesc.c_str());
+	this->logInfo("DivertWorker exiting");
 	return;
 }
 
-BaseProxy::BaseProxy()
+BaseProxy::BaseProxy(bool verbose)
 {
-	this->running = false;	
+	this->running = false;
 	this->priority = 0;
 	this->selfDescStr = this->getStringDesc();
+	this->verbose = verbose;
 }
 
 
@@ -254,38 +307,38 @@ bool BaseProxy::Start()
 	//lock scope
 	{
 		std::lock_guard<std::recursive_mutex> lock(this->resourceLock);
-		info("%s: Start", this->selfDescStr.c_str());
-		
+		this->logInfo("Start");
+
 		this->ioPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
 		if (this->ioPort == NULL)
 		{
-			error("%s: failed to create I/O completion port (%d)", this->selfDescStr.c_str(), GetLastError());
+			this->logError("failed to create I/O completion port (%d)", GetLastError());
 			goto failure;
 		}
 
 		this->event = CreateEvent(NULL, FALSE, FALSE, NULL);
 		if (event == NULL)
 		{
-			error("%s: failed to create event (%d)", this->selfDescStr.c_str(), GetLastError());
+			this->logError("failed to create event (%d)", GetLastError());
 			goto failure;
 		}
 
 		this->filterStr = this->generateDivertFilterString();
-		info("%s: %s", this->selfDescStr.c_str(), this->filterStr.c_str());
+		this->logInfo("%s", this->filterStr.c_str());
 		this->hDivert = WinDivertOpen(this->filterStr.c_str(), WINDIVERT_LAYER_NETWORK, this->priority, 0);
 		if (this->hDivert == INVALID_HANDLE_VALUE)
 		{
-			error("%s: failed to open the WinDivert device (%d)", this->selfDescStr.c_str(), GetLastError());
+			this->logError("failed to open the WinDivert device (%d)", GetLastError());
 			goto failure;
 		}
 		if (CreateIoCompletionPort(this->hDivert, this->ioPort, 0, 0) == NULL)
 		{
-			error("%s: failed to associate I/O completion port (%d)", this->selfDescStr.c_str(), GetLastError());
+			this->logError("failed to associate I/O completion port (%d)", GetLastError());
 			goto failure;
 		}
 	}//lock scope
 
-	this->running = true;	
+	this->running = true;
 	this->divertThread = std::thread(&BaseProxy::DivertWorker, this);
 	return true;
 
@@ -295,8 +348,8 @@ failure:
 }
 
 bool BaseProxy::Stop()
-{	
-	info("%s: Stop", this->selfDescStr.c_str());
+{
+	this->logInfo("Stop");
 	{//lock scope
 		std::lock_guard<std::recursive_mutex> lock(this->resourceLock);
 		this->running = false;
@@ -304,7 +357,7 @@ bool BaseProxy::Stop()
 		{
 			WinDivertClose(this->hDivert);
 			this->hDivert = NULL;
-		}		
+		}
 		if (this->ioPort != NULL)
 		{
 			CloseHandle(this->ioPort);

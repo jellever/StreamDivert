@@ -4,7 +4,8 @@
 #include "windivert.h"
 #include <ws2tcpip.h>
 
-InboundICMPDivertProxy::InboundICMPDivertProxy(const std::vector<InboundRelayEntry>& proxyRecords)
+InboundICMPDivertProxy::InboundICMPDivertProxy(bool verbose, const std::vector<InboundRelayEntry>& proxyRecords)
+	: BaseProxy(verbose)
 {
 	this->proxyRecords = proxyRecords;
 	this->selfDescStr = this->getStringDesc();
@@ -27,11 +28,12 @@ std::string InboundICMPDivertProxy::getStringDesc()
 	return std::string("InboundICMPDivertProxy()");
 }
 
-void InboundICMPDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+PacketAction InboundICMPDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
 {
+	return PacketAction::STATUS_PROCEED;
 }
 
-void InboundICMPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+PacketAction InboundICMPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
 {
 	if (!addr->Outbound)
 	{
@@ -42,8 +44,8 @@ void InboundICMPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & pa
 			{
 				std::string forwardAddrStr = record->forwardAddr.to_string();
 				std::string dstAddrStr = dstAddr.to_string();
-				info("%s: Modify packet src -> %s", this->selfDescStr.c_str(), dstAddrStr.c_str());
-				info("%s: Modify packet dst -> %s", this->selfDescStr.c_str(), forwardAddrStr.c_str());
+				this->logDebug("Modify packet src -> %s",  dstAddrStr.c_str());
+				this->logDebug("Modify packet dst -> %s", forwardAddrStr.c_str());
 
 				EndpointKey key;
 				key.addr = record->forwardAddr.get_addr();
@@ -65,8 +67,8 @@ void InboundICMPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & pa
 				if (it != this->connectionMap.end())
 				{
 					IpAddr& lookupAddr = it->second.addr;
-					info("%s: Modify packet src -> %s", this->selfDescStr.c_str(), dstAddr.to_string().c_str());
-					info("%s: Modify packet dst -> %s", this->selfDescStr.c_str(), lookupAddr.to_string().c_str());
+					this->logDebug("Modify packet src -> %s", dstAddr.to_string().c_str());
+					this->logDebug("Modify packet dst -> %s", lookupAddr.to_string().c_str());
 
 					this->SwapIPHeaderDstToSrc(ip_hdr, ip6_hdr);
 					this->OverrideIPHeaderDst(ip_hdr, ip6_hdr, lookupAddr);
@@ -76,10 +78,12 @@ void InboundICMPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & pa
 			}
 		}
 	}
+	return PacketAction::STATUS_PROCEED;
 }
 
-void InboundICMPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
+PacketAction InboundICMPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
 {
+	return PacketAction::STATUS_PROCEED;
 }
 
 std::string InboundICMPDivertProxy::generateDivertFilterString()

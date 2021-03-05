@@ -5,12 +5,14 @@
 #include <fstream>
 
 
-RelayConfig LoadConfig(std::string path)
+bool LoadConfig(std::string path, RelayConfig& result)
 {
-	RelayConfig result;
 	std::ifstream ifs((path));
 	std::string line;	
 
+	if (!ifs) {
+		return false;
+	}
 	while (std::getline(ifs, line))
 	{
 		char proto[200] = { 0 };
@@ -20,6 +22,7 @@ RelayConfig LoadConfig(std::string path)
 		UINT16 dstPort = 0;
 		char forwardAddr[200] = { 0 };
 		UINT16 forwardPort = 0;
+		UINT32 interfaceIdx = -1;
 
 		if (sscanf_s(line.c_str(), "%[a-z] < %hu %s -> %s %hu", &proto[0], _countof(proto), &localPort, &srcAddr[0], _countof(srcAddr), &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
 		{
@@ -41,6 +44,30 @@ RelayConfig LoadConfig(std::string path)
 			entry.srcAddr = IpAddr(srcAddr);			
 			result.inboundRelayEntries.push_back(entry);
 		}
+		else if (sscanf_s(line.c_str(), "%[a-z] > %s %hu -> %s %hu force interface %u", &proto[0], _countof(proto), &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort, &interfaceIdx) == 6)
+		{
+			OutboundRelayEntry entry;
+			entry.protocol = std::string(proto);
+			entry.dstAddr = IpAddr(dstAddr);
+			entry.dstPort = dstPort;
+			entry.forwardAddr = IpAddr(forwardAddr);
+			entry.forwardPort = forwardPort;
+			entry.interfaceIdx = interfaceIdx;
+			entry.forceInterfaceIdx = true;
+			result.outboundRelayEntries.push_back(entry);
+		}
+		else if (sscanf_s(line.c_str(), "%[a-z] > %s %hu -> %s %hu interface %u", &proto[0], _countof(proto), &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort, &interfaceIdx) == 6)
+		{
+			OutboundRelayEntry entry;
+			entry.protocol = std::string(proto);
+			entry.dstAddr = IpAddr(dstAddr);
+			entry.dstPort = dstPort;
+			entry.forwardAddr = IpAddr(forwardAddr);
+			entry.forwardPort = forwardPort;
+			entry.interfaceIdx = interfaceIdx;
+			entry.forceInterfaceIdx = false;
+			result.outboundRelayEntries.push_back(entry);
+		}
 		else if(sscanf_s(line.c_str(), "%[a-z] > %s %hu -> %s %hu", &proto[0], _countof(proto), &dstAddr[0], _countof(dstAddr), &dstPort, &forwardAddr[0], _countof(forwardAddr), &forwardPort) == 5)
 		{
 			OutboundRelayEntry entry;
@@ -49,8 +76,9 @@ RelayConfig LoadConfig(std::string path)
 			entry.dstPort = dstPort;
 			entry.forwardAddr = IpAddr(forwardAddr);
 			entry.forwardPort = forwardPort;
+			entry.interfaceIdx = interfaceIdx;
 			result.outboundRelayEntries.push_back(entry);			
-		}
+		}		
 		else if (sscanf_s(line.c_str(), "icmp < %s -> %s", &srcAddr[0], _countof(srcAddr), &forwardAddr[0], _countof(forwardAddr)) == 2)
 		{
 			InboundRelayEntry entry;
@@ -72,5 +100,5 @@ RelayConfig LoadConfig(std::string path)
 			result.outboundRelayEntries.push_back(entry);
 		}		
 	}
-	return result;
+	return true;
 }

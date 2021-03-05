@@ -5,7 +5,8 @@
 #include <ws2tcpip.h>
 
 
-InboundUDPDivertProxy::InboundUDPDivertProxy(const std::vector<InboundRelayEntry>& proxyRecords)
+InboundUDPDivertProxy::InboundUDPDivertProxy(bool verbose, const std::vector<InboundRelayEntry>& proxyRecords)
+	: BaseProxy(verbose)
 {
 	this->proxyRecords = proxyRecords;
 	this->selfDescStr = this->getStringDesc();
@@ -27,16 +28,18 @@ std::string InboundUDPDivertProxy::getStringDesc()
 	return result;
 }
 
-void InboundUDPDivertProxy::ProcessTCPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+PacketAction InboundUDPDivertProxy::ProcessTCPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_TCPHDR tcp_hdr, IpAddr& srcAddr, IpAddr& dstAddr)
 {
+	return PacketAction::STATUS_PROCEED;
 }
 
-void InboundUDPDivertProxy::ProcessICMPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr & srcAddr, IpAddr & dstAddr)
+PacketAction InboundUDPDivertProxy::ProcessICMPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_ICMPHDR icmp_hdr, PWINDIVERT_ICMPV6HDR icmp6_hdr, IpAddr& srcAddr, IpAddr& dstAddr)
 {
+	return PacketAction::STATUS_PROCEED;
 }
 
-void InboundUDPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr & srcAddr, IpAddr & dstAddr)
-{	
+PacketAction InboundUDPDivertProxy::ProcessUDPPacket(unsigned char* packet, UINT& packet_len, PWINDIVERT_ADDRESS addr, PWINDIVERT_IPHDR ip_hdr, PWINDIVERT_IPV6HDR ip6_hdr, PWINDIVERT_UDPHDR udp_header, IpAddr& srcAddr, IpAddr& dstAddr)
+{
 	if (!addr->Outbound)
 	{
 		for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
@@ -47,8 +50,8 @@ void InboundUDPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & pack
 			{
 				std::string forwardAddrStr = record->forwardAddr.to_string();
 				std::string dstAddrStr = dstAddr.to_string();
-				info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), dstAddrStr.c_str(), ntohs(udp_header->SrcPort));
-				info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), forwardAddrStr.c_str(), record->forwardPort);
+				this->logDebug("Modify packet src -> %s:%hu", dstAddrStr.c_str(), ntohs(udp_header->SrcPort));
+				this->logDebug("Modify packet dst -> %s:%hu", forwardAddrStr.c_str(), record->forwardPort);
 
 				EndpointKey key;
 				key.addr = record->forwardAddr.get_addr();
@@ -72,11 +75,11 @@ void InboundUDPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & pack
 				if (it != this->connectionMap.end())
 				{
 					IpAddr& lookupAddr = it->second.addr;
-					info("%s: Modify packet src -> %s:%hu", this->selfDescStr.c_str(), dstAddr.to_string().c_str(), ntohs(it->second.port));
-					info("%s: Modify packet dst -> %s:%hu", this->selfDescStr.c_str(), lookupAddr.to_string().c_str(), ntohs(udp_header->DstPort));
+					this->logDebug("Modify packet src -> %s:%hu", dstAddr.to_string().c_str(), ntohs(it->second.port));
+					this->logDebug("Modify packet dst -> %s:%hu", lookupAddr.to_string().c_str(), ntohs(udp_header->DstPort));
 
 					this->SwapIPHeaderDstToSrc(ip_hdr, ip6_hdr);
-					this->OverrideIPHeaderDst(ip_hdr, ip6_hdr, lookupAddr);					
+					this->OverrideIPHeaderDst(ip_hdr, ip6_hdr, lookupAddr);
 					udp_header->SrcPort = it->second.port;
 					addr->Outbound = 1;
 					break;
@@ -84,12 +87,13 @@ void InboundUDPDivertProxy::ProcessUDPPacket(unsigned char * packet, UINT & pack
 			}
 		}
 	}
+	return PacketAction::STATUS_PROCEED;
 }
 
 std::string InboundUDPDivertProxy::generateDivertFilterString()
 {
 	std::string result = "udp";
-	std::set<std::string> orExpressions;	
+	std::set<std::string> orExpressions;
 
 	//check for wildcard address
 	bool containsWildcard = false;
@@ -99,17 +103,17 @@ std::string InboundUDPDivertProxy::generateDivertFilterString()
 		{
 			std::string forwardAddrIpStr = this->getIpAddrIpStr(record->forwardAddr);
 			std::string recordFilterStr;
-			
+
 			recordFilterStr = "(udp.DstPort == " + std::to_string(record->localPort) + ")";
-			orExpressions.insert(recordFilterStr);						
-			containsWildcard = true;			
+			orExpressions.insert(recordFilterStr);
+			containsWildcard = true;
 		}
 	}
-	
+
 	for (auto record = this->proxyRecords.begin(); record != this->proxyRecords.end(); ++record)
 	{
 		std::string srcAddrIpStr = this->getIpAddrIpStr(record->srcAddr);
-		std::string forwardAddrIpStr = this->getIpAddrIpStr(record->forwardAddr);			
+		std::string forwardAddrIpStr = this->getIpAddrIpStr(record->forwardAddr);
 		std::string recordFilterStr;
 
 		if (!containsWildcard)
@@ -119,7 +123,7 @@ std::string InboundUDPDivertProxy::generateDivertFilterString()
 		}
 		recordFilterStr = "(udp.SrcPort == " + std::to_string(record->forwardPort) + " and " + forwardAddrIpStr + ".SrcAddr == " + record->forwardAddr.to_string() + ")";
 		orExpressions.insert(recordFilterStr);
-	}	
+	}
 
 	result += " and (";
 	joinStr(orExpressions, std::string(" or "), result);

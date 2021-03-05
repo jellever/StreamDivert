@@ -20,25 +20,47 @@
 #include "config.h"
 #include "WindowsFirewall.h"
 #include "SocksProxyServer.h"
+#include "interfaces.h"
+#include "utils.h"
 
 // Global Variables:
 HINSTANCE hInst;                                // current instance
-/*
-* Lock to sync output.
-*/
+const char* version = "1.1.0";
 
 
 int __cdecl main(int argc, char **argv)
 {
 	bool modifyFW = false;
+	bool verbose = false;
 	if (argc < 2)
 	{
-		error("No config file was specified!");
-		exit(EXIT_FAILURE);
+		char* filename = basename(argv[0]);
+		fprintf(stderr, "StreamDivert %s - Redirect network traffic\n", version);
+		fprintf(stderr, "%s cfg_file [-v] [-f]\n", filename);
+		fprintf(stderr, "%s interfaces\n", filename);
+		fprintf(stderr, "-f\tModify windows firewall to allow redirecting incomming TCP streams\n");
+		fprintf(stderr, "-v\tPrint modified packets to stderr\n");
+		fprintf(stderr, "interfaces\tPrint information regarding the network interfaces\n");
+
+		exit(EXIT_SUCCESS);
 	}
-	if (argc == 3 && std::string(argv[2]) == "-f")
+	if (argc == 2 && std::string(argv[1]) == "interfaces")
 	{
-		modifyFW = true;
+		PrintInterfaceInfo();
+		exit(EXIT_SUCCESS);
+	}
+	
+	for (int i = 2; i < argc; i++)
+	{
+		std::string argval = argv[i];
+		if (argval == "-f")
+		{
+			modifyFW = true;
+		}
+		else if (argval == "-v")
+		{
+			verbose = true;
+		}
 	}
 	std::string cfgPath = argv[1];
 
@@ -58,7 +80,13 @@ int __cdecl main(int argc, char **argv)
 	}
 	
 	info("Parsing config file...");
-	RelayConfig cfg = LoadConfig(cfgPath);
+	RelayConfig cfg;
+	bool cfgLoadResult = LoadConfig(cfgPath, cfg);
+	if (!cfgLoadResult)
+	{
+		error("Failed to load config file!");
+		exit(EXIT_FAILURE);
+	}
 	info("Parsed %d inbound and %d outbound relay entries.", cfg.inboundRelayEntries.size(), cfg.outboundRelayEntries.size());
 
 	info("Starting packet diverters...");
@@ -85,21 +113,21 @@ int __cdecl main(int argc, char **argv)
 
 	for (auto mapping : mappedInboundTCPRelayEntries)
 	{
-		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(mapping.first, mapping.second);
+		InboundTCPDivertProxy* proxy = new InboundTCPDivertProxy(verbose, mapping.first, mapping.second);
 		proxy->Start();
 		proxies.push_back(proxy);
 		//proxy->Stop();
 	}
 	
-	InboundUDPDivertProxy* inboundUDPProxy = new InboundUDPDivertProxy(inboundUDPRelayEntries);
+	InboundUDPDivertProxy* inboundUDPProxy = new InboundUDPDivertProxy(verbose, inboundUDPRelayEntries);
 	inboundUDPProxy->Start();
 	proxies.push_back(inboundUDPProxy);
 
-	InboundICMPDivertProxy* inboundICMPProxy = new InboundICMPDivertProxy(inboundICMPRelayEntries);
+	InboundICMPDivertProxy* inboundICMPProxy = new InboundICMPDivertProxy(verbose, inboundICMPRelayEntries);
 	inboundICMPProxy->Start();
 	proxies.push_back(inboundICMPProxy);
 
-	OutboundDivertProxy* outboundProxy = new OutboundDivertProxy(cfg.outboundRelayEntries);
+	OutboundDivertProxy* outboundProxy = new OutboundDivertProxy(verbose, cfg.outboundRelayEntries);
 	outboundProxy->Start();
 	proxies.push_back(outboundProxy);
 
@@ -107,5 +135,3 @@ int __cdecl main(int argc, char **argv)
 	std::promise<void> p;
 	p.get_future().wait();	
 }
-
-
