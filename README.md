@@ -44,7 +44,7 @@ icmp < 10.0.1.50 -> 10.0.1.49
 tcp > 10.0.1.50 80 -> 10.0.1.49 8080
 
 //Send all packets going to 10.0.1.50 port 80 and prefer interface 9 to send them. If the interface does not exist or is not up, the packets are send from the default interface.
-tcp > 10.0.1.50 80 -> 10.0.1.50 80 force interface 9
+tcp > 10.0.1.50 80 -> 10.0.1.50 80 interface 9
 
 //Force all packets going to 10.0.1.50 port 80 over interface 9, or drop the packets if the interface does not exist or is not up.
 tcp > 10.0.1.50 80 -> 10.0.1.50 80 force interface 9
